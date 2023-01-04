@@ -88,10 +88,12 @@ void wizchip_writeBurst(uint8_t *pBuf, uint16_t len){
 
 void wizchip1_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
-	                          .ip 	= {169, 254, 2, 1},					    // IP address
+	                          .ip 	= {10, 0, 7, 210},					    // IP address
 	                          .sn 	= {255, 255, 0, 0},						// Subnet mask
-	                          .gw 	= {169, 254, 1, 1}};					// Gateway address
+	                          .gw 	= {255, 255, 255, 127}};					// Gateway address
 	  wizchip_setnetinfo(&netInfo);
+	  wizchip_getnetinfo(&netInfo);
+	  HAL_Delay(1);
 }
 
 void wizchip2_settings(void){
@@ -100,6 +102,7 @@ void wizchip2_settings(void){
 	                          .sn 	= {255, 255, 0, 0},					    // Subnet mask
 	                          .gw 	= {255, 255, 255, 127}};					// Gateway address
 	  wizchip_setnetinfo(&netInfo);
+	  wizchip_getnetinfo(&netInfo);
 
 	  /* Set interrupt */
 	  setSn_IMR(1, Sn_IR_RECV);

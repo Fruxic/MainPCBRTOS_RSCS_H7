@@ -58,7 +58,7 @@ struct rock rck[5];
 #define PI								3.142857
 #define CORRECTION						2.5
 
-#define PORT							30189
+#define PORT							5005
 #define NMEA							"$PRSCD"
 #define DATAPOINTMAX					512
 
@@ -105,26 +105,26 @@ UART_HandleTypeDef huart2;
 osThreadId_t IOHandle;
 const osThreadAttr_t IO_attributes = {
   .name = "IO",
-  .stack_size = 2048 * 4,
+  .stack_size = 4096 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for LMS */
 osThreadId_t LMSHandle;
 const osThreadAttr_t LMS_attributes = {
   .name = "LMS",
-  .stack_size = 2048 * 4,
+  .stack_size = 4096 * 4,
   .priority = (osPriority_t) osPriorityRealtime,
 };
 /* Definitions for HUM */
 osThreadId_t HUMHandle;
 const osThreadAttr_t HUM_attributes = {
   .name = "HUM",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
-const uint8_t LMS_IP[4] = {169, 254, 19, 239};
-const uint8_t IO_IP[4] = {10, 16, 6, 213};
+const uint8_t LMS_IP[4] = {10, 16, 8, 100};
+const uint8_t IO_IP[4] = {10, 16, 7, 198};
 
 uint8_t LMS_recv[3000];
 uint8_t LMS_buf[100];
@@ -140,9 +140,9 @@ int retVal;
 
 int humAlertOne = 0; //Alert hum
 int humAlertTwo = 0;
-float measAmpMax;
-float measFreq;
-float measTemp;
+int measAmpMax;
+int measFreq;
+int measTemp;
 
 unsigned int startAngle;
 unsigned int endAngle;
@@ -224,13 +224,13 @@ int main(void)
   W5500Init();
 
   //Initialise humidity module
-//  if((ret = HAL_I2C_IsDeviceReady(&hi2c1, SHT31_ADDR, 1, HAL_MAX_DELAY)) != HAL_OK){
-//	  //error handler
-//	  while(1);
-//  }
+  if((ret = HAL_I2C_IsDeviceReady(&hi2c1, SHT31_ADDR, 1, HAL_MAX_DELAY)) != HAL_OK){
+	  //error handler
+	  while(1);
+  }
 
   //Initialise Ethernet module for IO-server
-  reg_wizchip_cs_cbfunc(wizchip2_select, wizchip2_deselect);
+  reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
   if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
 	  //error handler
 	  while(1);
@@ -690,7 +690,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
   HAL_UART_Receive_DMA(&huart1, MEAS_data, 22);
-  sscanf((char *)MEAS_data, "%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
+  sscanf((char *)MEAS_data, "%d,%d,%d,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
 }
 /* USER CODE END 4 */
 
@@ -722,12 +722,12 @@ void StartIO(void *argument)
 	  for(;;)
 	  {
 		  	lock = 1;
-		  	reg_wizchip_cs_cbfunc(wizchip2_select, wizchip2_deselect);
-			sprintf((char *)IO_buf, "%s,%.2f,%.2f,%.2f,%d,%d,%d\r\n", NMEA, measTemp, measAmpMax, measFreq, rck[0].height, rck[0].width, rck[0].length);
+		  	reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
+			sprintf((char *)IO_buf, "%s,%d,%d,%d,%d,%d,%d\r\n", NMEA, measTemp, measAmpMax, measFreq, rck[0].height, rck[0].width, rck[0].length);
 			if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 				//error handler
 			}
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == GPIO_PIN_RESET){//check interrupt pin
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_RESET){//check interrupt pin
 				if((retValIO = recvfrom(1, IO_recv, sizeof(IO_recv), (uint8_t *)IO_IP, 0)) < 0){
 					//error handler
 				} else{
@@ -760,7 +760,7 @@ void StartIO(void *argument)
 					Flash_Write_Data(FLASH_PARAMETER, (uint32_t *)flashArr, sizeof(flashArr));
 					//configure 2D LiDAR sensor with the given parameters
 					if(strcmp((char *)NMEArecv, "$PVRSCC") == 0){
-						reg_wizchip_cs_cbfunc(wizchip1_select, wizchip1_deselect);
+						reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 						if((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0){
 							if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
 								sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGIN, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
@@ -857,7 +857,7 @@ void StartIO(void *argument)
 							}
 						}
 					}
-					reg_wizchip_cs_cbfunc(wizchip2_select, wizchip2_deselect);
+					reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
 					close(1);
 					if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
 					  //error handler
@@ -912,8 +912,6 @@ void StartLMS(void *argument)
 	  uint8_t xAxisControl = 0;
 	  uint8_t rckControl = 0;
 
-	//uint8_t UART_buf[50];
-
 	  uint32_t start = 0;
 	  uint32_t stop = 0;
 	  uint32_t delta = 0;
@@ -925,11 +923,11 @@ void StartLMS(void *argument)
 			stop  = HAL_GetTick();
 			delta = stop - start;
 			start = HAL_GetTick();
-			reg_wizchip_cs_cbfunc(wizchip1_select, wizchip1_deselect);
+			reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 			if((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0){
 				if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
 					  sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
-					  reg_wizchip_cs_cbfunc(wizchip1_select, wizchip1_deselect);
+					  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 					  if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 						  //error handler
 						  for(;;);

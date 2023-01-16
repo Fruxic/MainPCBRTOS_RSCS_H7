@@ -8,13 +8,13 @@
 #ifndef INC_W5500_SPI_H_
 #define INC_W5500_SPI_H_
 
-void wizchip1_select(void);
+void LMS_select(void);
 
-void wizchip1_deselect(void);
+void LMS_deselect(void);
 
-void wizchip2_select(void);
+void IO_select(void);
 
-void wizchip2_deselect(void);
+void IO_deselect(void);
 
 void W5500Init();
 

@@ -18,36 +18,36 @@ extern SPI_HandleTypeDef hspi4;
 #define TRUE 1
 #define FALSE 0
 
-uint8_t wizchip1_status = FALSE;
-uint8_t wizchip2_status = FALSE;
+uint8_t LMS_status = FALSE;
+uint8_t IO_status = FALSE;
 
 /*Functions*/
-void wizchip1_select(void){
-	wizchip1_status = TRUE;
+void LMS_select(void){
+	LMS_status = TRUE;
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); //Makes CS pin LOW
 }
 
-void wizchip1_deselect(void){
-	wizchip1_status = FALSE;
+void LMS_deselect(void){
+	LMS_status = FALSE;
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); //Makes CS pin HIGH
 }
 
-void wizchip2_select(void){
-	wizchip2_status = TRUE;
+void IO_select(void){
+	IO_status = TRUE;
 	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET); //Makes CS pin LOW
 }
 
-void wizchip2_deselect(void){
-	wizchip2_status = FALSE;
+void IO_deselect(void){
+	IO_status = FALSE;
 	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); //Makes CS pin HIGH
 }
 
 //Pointers has to be added here to differentiate from both received data packages
 uint8_t SPIRead(void){
 	uint8_t rb = 0;
-	if(wizchip1_status == TRUE){
+	if(LMS_status == TRUE){
 		HAL_SPI_Receive(&hspi1, &rb, 1, HAL_MAX_DELAY);
-	}else if(wizchip2_status == TRUE){
+	}else if(IO_status == TRUE){
 		HAL_SPI_Receive(&hspi4, &rb, 1, HAL_MAX_DELAY);
 	}
 	return rb;
@@ -55,9 +55,9 @@ uint8_t SPIRead(void){
 
 //Pointers has to be added here to differentiate from both transmitted data packages
 void SPIWrite(uint8_t wb){
-	if(wizchip1_status == TRUE){
+	if(LMS_status == TRUE){
 		HAL_SPI_Transmit(&hspi1, &wb, 1, HAL_MAX_DELAY);
-	}else if(wizchip2_status == TRUE){
+	}else if(IO_status == TRUE){
 		HAL_SPI_Transmit(&hspi4, &wb, 1, HAL_MAX_DELAY);
 	}
 }
@@ -86,21 +86,20 @@ void wizchip_writeBurst(uint8_t *pBuf, uint16_t len){
 	}
 }
 
-void wizchip1_settings(void){
+void LMS_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
-	                          .ip 	= {10, 0, 7, 210},					    // IP address
-	                          .sn 	= {255, 255, 0, 0},						// Subnet mask
-	                          .gw 	= {255, 255, 255, 127}};					// Gateway address
+	                          .ip 	= {10, 16, 8, 99},					    // IP address
+	                          .sn 	= {255, 255, 255, 0},					// Subnet mask
+	                          .gw 	= {10, 16, 8, 0}};				    // Gateway address
 	  wizchip_setnetinfo(&netInfo);
 	  wizchip_getnetinfo(&netInfo);
-	  HAL_Delay(1);
 }
 
-void wizchip2_settings(void){
+void IO_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
-	                          .ip 	= {10, 16, 6, 189},					    // IP address
-	                          .sn 	= {255, 255, 0, 0},					    // Subnet mask
-	                          .gw 	= {255, 255, 255, 127}};					// Gateway address
+	                          .ip 	= {10, 16, 7, 200},					    // IP address
+	                          .sn 	= {255, 255, 255, 0},					// Subnet mask
+	                          .gw 	= {10, 16, 7, 0}};				    // Gateway address
 	  wizchip_setnetinfo(&netInfo);
 	  wizchip_getnetinfo(&netInfo);
 
@@ -114,8 +113,8 @@ void W5500Init(){
 	uint8_t tmp;
 	uint8_t memsize[2][8]= {{4, 4, 2, 2, 2, 2, 0, 0},{4, 4, 2, 2, 2, 2, 0, 0}};
 
-	wizchip1_deselect(); //CS HIGH by default
-	wizchip2_deselect(); //CS HIGH by default
+	LMS_deselect(); //CS HIGH by default
+	IO_deselect(); //CS HIGH by default
 
 	//Reset both the W5500 chip
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -128,19 +127,19 @@ void W5500Init(){
 	reg_wizchip_spi_cbfunc(wizchip_read, wizchip_write);
 	reg_wizchip_spiburst_cbfunc(wizchip_readBurst, wizchip_writeBurst);
 
-	/* Initialise first WIZchip on RSCS */
-	reg_wizchip_cs_cbfunc(wizchip1_select, wizchip1_deselect);
+	/* Initialise first WIZchip (LMS connection) on RSCS */
+	reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 	if(ctlwizchip(CW_INIT_WIZCHIP, (void*)memsize) == -1){
 		while(1); // Initialisation failed!
 	}
-	/*Initialise MAC, IP, and the rest for wizchip1 here*/
-	wizchip1_settings();
+	/*Initialise MAC, IP, and the rest for LMS here*/
+	LMS_settings();
 
-	/* Initialise second WIZchip on RSCS */
-	reg_wizchip_cs_cbfunc(wizchip2_select, wizchip2_deselect);
+	/* Initialise second WIZchip (IO connection) on RSCS */
+	reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
 	if(ctlwizchip(CW_INIT_WIZCHIP, (void*)memsize) == -1){
 		while(1); // Initialisation failed!
 	}
-	/*Initialise MAC, IP, and the rest for wizchip2 here*/
-	wizchip2_settings();
+	/*Initialise MAC, IP, and the rest for IO here*/
+	IO_settings();
 }

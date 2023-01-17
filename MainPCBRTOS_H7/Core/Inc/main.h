@@ -36,7 +36,7 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+extern HAL_StatusTypeDef ret;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

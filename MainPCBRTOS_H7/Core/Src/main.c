@@ -116,22 +116,18 @@ int main(void)
   //Initialise humidity module
   if((ret = HAL_I2C_IsDeviceReady(&hi2c1, SHT31_ADDR, 1, HAL_MAX_DELAY)) != HAL_OK){
 	  //error handler
-	  while(1);
+	  for(;;);
   }
 
   //Initialise Ethernet module for IO-server
   reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
   if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
 	  //error handler
-	  while(1);
+	  for(;;);
   }
-
-  //Start DMA for UART communication with measurement PCB
-  HAL_UART_Receive_DMA(&huart1, MEAS_data, 22);
   /* USER CODE END 2 */
 
-  /* Init scheduler */
-  osKernelInitialize();  /* Call init function for freertos objects (in freertos.c) */
+  /* Call init function for freertos objects (in freertos.c) */
   MX_FREERTOS_Init();
 
   /* Start scheduler */
@@ -246,10 +242,7 @@ void PeriphCommonClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
-  HAL_UART_Receive_DMA(&huart1, MEAS_data, 22);
-  sscanf((char *)MEAS_data, "%d,%d,%d,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
-}
+
 /* USER CODE END 4 */
 
 /**

@@ -17,16 +17,16 @@ extern unsigned char LMS_buf[100];
 extern unsigned char IO_recv[100];
 extern unsigned char IO_buf[100];
 //
-extern unsigned char MEAS_data[100];
+extern unsigned char MEAS_data[50];
 //
 extern int retValIO;
 extern int retVal;
 //
 extern int humAlertOne; //Alert hum
 extern int humAlertTwo;
-extern int measAmpMax;
-extern int measFreq;
-extern int measTemp;
+extern float measAmpMax;
+extern float measFreq;
+extern float measTemp;
 //
 extern unsigned int startAngle;
 extern unsigned int endAngle;

@@ -27,7 +27,6 @@
 /* USER CODE BEGIN Includes */
 #include "defines.h"
 #include "variables.h"
-#include "i2c.h"
 #include "socket.h"
 #include "wizchip_conf.h"
 #include "w5500.h"
@@ -72,47 +71,39 @@ struct rock rck[5];
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for Empty */
-osThreadId_t EmptyHandle;
-const osThreadAttr_t Empty_attributes = {
-  .name = "Empty",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-/* Definitions for LMS */
-osThreadId_t LMSHandle;
-const osThreadAttr_t LMS_attributes = {
-  .name = "LMS",
-  .stack_size = 4096 * 4,
-  .priority = (osPriority_t) osPriorityRealtime,
-};
-/* Definitions for HUM */
-osThreadId_t HUMHandle;
-const osThreadAttr_t HUM_attributes = {
-  .name = "HUM",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for IO */
-osThreadId_t IOHandle;
-const osThreadAttr_t IO_attributes = {
-  .name = "IO",
-  .stack_size = 4096 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
+osThreadId EmptyHandle;
+osThreadId LMSHandle;
+osThreadId HumidityHandle;
+osThreadId IOHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
 
-void StartEmpty(void *argument);
-void StartLMS(void *argument);
-void StartHUM(void *argument);
-void StartIO(void *argument);
+void startEmpty(void const * argument);
+void startLMS(void const * argument);
+void startHumidity(void const * argument);
+void startIO(void const * argument);
 
 extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
+
+/* GetIdleTaskMemory prototype (linked to static allocation support) */
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
+
+/* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
+static StaticTask_t xIdleTaskTCBBuffer;
+static StackType_t xIdleStack[configMINIMAL_STACK_SIZE];
+
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize )
+{
+  *ppxIdleTaskTCBBuffer = &xIdleTaskTCBBuffer;
+  *ppxIdleTaskStackBuffer = &xIdleStack[0];
+  *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+  /* place for user code */
+}
+/* USER CODE END GET_IDLE_TASK_MEMORY */
 
 /**
   * @brief  FreeRTOS initialization
@@ -141,67 +132,67 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of Empty */
-  EmptyHandle = osThreadNew(StartEmpty, NULL, &Empty_attributes);
+  /* definition and creation of Empty */
+  osThreadDef(Empty, startEmpty, osPriorityIdle, 0, 128);
+  EmptyHandle = osThreadCreate(osThread(Empty), NULL);
 
-  /* creation of LMS */
-  LMSHandle = osThreadNew(StartLMS, NULL, &LMS_attributes);
+  /* definition and creation of LMS */
+  osThreadDef(LMS, startLMS, osPriorityRealtime, 0, 4096);
+  LMSHandle = osThreadCreate(osThread(LMS), NULL);
 
-  /* creation of HUM */
-  HUMHandle = osThreadNew(StartHUM, NULL, &HUM_attributes);
+  /* definition and creation of Humidity */
+  osThreadDef(Humidity, startHumidity, osPriorityNormal, 0, 512);
+  HumidityHandle = osThreadCreate(osThread(Humidity), NULL);
 
-  /* creation of IO */
-  IOHandle = osThreadNew(StartIO, NULL, &IO_attributes);
+  /* definition and creation of IO */
+  osThreadDef(IO, startIO, osPriorityAboveNormal, 0, 4096);
+  IOHandle = osThreadCreate(osThread(IO), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
-  /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
-  /* USER CODE END RTOS_EVENTS */
-
 }
 
-/* USER CODE BEGIN Header_StartEmpty */
+/* USER CODE BEGIN Header_startEmpty */
 /**
   * @brief  Function implementing the Empty thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartEmpty */
-void StartEmpty(void *argument)
+/* USER CODE END Header_startEmpty */
+void startEmpty(void const * argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
-  /* USER CODE BEGIN StartEmpty */
-  //Read the flash for the parameters needed for the algorithm
-  Flash_Read_Data(FLASH_PARAMETER, (uint32_t *)flashRead, sizeof(flashRead));
-  startAngle = flashRead[0];
-  endAngle = flashRead[1];
-  resolution = flashRead[2];
-  freq = flashRead[3];
-  speed = Flash_Read_NUM(FLASH_SPEED);
+  /* USER CODE BEGIN startEmpty */
+//  //Read the flash for the parameters needed for the algorithm
+//  Flash_Read_Data(FLASH_PARAMETER, (uint32_t *)flashRead, sizeof(flashRead));
+//  startAngle = flashRead[0];
+//  endAngle = flashRead[1];
+//  resolution = flashRead[2];
+//  freq = flashRead[3];
+//  speed = Flash_Read_NUM(FLASH_SPEED);
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(10);
   }
   // In case we accidentally leave loop
   osThreadTerminate(NULL);
-  /* USER CODE END StartEmpty */
+  /* USER CODE END startEmpty */
 }
 
-/* USER CODE BEGIN Header_StartLMS */
+/* USER CODE BEGIN Header_startLMS */
 /**
 * @brief Function implementing the LMS thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartLMS */
-void StartLMS(void *argument)
+/* USER CODE END Header_startLMS */
+void startLMS(void const * argument)
 {
-  /* USER CODE BEGIN StartLMS */
+  /* USER CODE BEGIN startLMS */
   uint16_t LMS_measData[DATAPOINTMAX];
   int16_t LMS_calcDataX[DATAPOINTMAX];
   int16_t LMS_calcDataY[DATAPOINTMAX];
@@ -459,19 +450,19 @@ void StartLMS(void *argument)
   }
   // In case we accidentally leave loop
   osThreadTerminate(NULL);
-  /* USER CODE END StartLMS */
+  /* USER CODE END startLMS */
 }
 
-/* USER CODE BEGIN Header_StartHUM */
+/* USER CODE BEGIN Header_startHumidity */
 /**
-* @brief Function implementing the HUM thread.
+* @brief Function implementing the Humidity thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartHUM */
-void StartHUM(void *argument)
+/* USER CODE END Header_startHumidity */
+void startHumidity(void const * argument)
 {
-  /* USER CODE BEGIN StartHUM */
+  /* USER CODE BEGIN startHumidity */
   uint8_t I2C_recv[6];
   uint8_t I2C_trans[2];
   uint16_t val;
@@ -485,32 +476,34 @@ void StartHUM(void *argument)
   {
 	if((ret = HAL_I2C_Master_Transmit(&hi2c1, SHT31_ADDR, I2C_trans, 2, HAL_MAX_DELAY)) != HAL_OK){
 		//error handler
+		for(;;);
 	}
 	if((ret = HAL_I2C_Master_Receive(&hi2c1, SHT31_ADDR, I2C_recv, 6, HAL_MAX_DELAY)) != HAL_OK){
 		//error handler
+		for(;;);
 	}
 	val = I2C_recv[3] << 8 | I2C_recv[4];
 	hum_rh = 100*(val/(pow(2,16)-1));
 	if(hum_rh > 75){
 		humAlertOne = 1;
 	}
-    osDelay(500);
+	osDelay(500);
   }
   // In case we accidentally leave loop
   osThreadTerminate(NULL);
-  /* USER CODE END StartHUM */
+  /* USER CODE END startHumidity */
 }
 
-/* USER CODE BEGIN Header_StartIO */
+/* USER CODE BEGIN Header_startIO */
 /**
-  * @brief  Function implementing the IO thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartIO */
-void StartIO(void *argument)
+* @brief Function implementing the IO thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_startIO */
+void startIO(void const * argument)
 {
-  /* USER CODE BEGIN StartIO */
+  /* USER CODE BEGIN startIO */
   char NMEArecv[6];
 
   int tempSpeed = 0;
@@ -526,9 +519,11 @@ void StartIO(void *argument)
   /* Infinite loop */
   for(;;)
   {
+	HAL_UART_Receive(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data), 1000);
+	sscanf((char *)MEAS_data, "%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
 	lock = 1;
 	reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-	sprintf((char *)IO_buf, "%s,%d,%d,%d,%d,%d,%d\r\n", NMEA, measTemp, measAmpMax, measFreq, rck[0].height, rck[0].width, rck[0].length);
+	sprintf((char *)IO_buf, "%s,%.2f,%.2f,%.2f,%d,%d,%d\r\n", NMEA, measTemp, measAmpMax, measFreq, rck[0].height, rck[0].width, rck[0].length);
 	if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
 	}
@@ -675,11 +670,10 @@ void StartIO(void *argument)
   }
   // In case we accidentally leave loop
   osThreadTerminate(NULL);
-  /* USER CODE END StartIO */
+  /* USER CODE END startIO */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 
 /* USER CODE END Application */
-

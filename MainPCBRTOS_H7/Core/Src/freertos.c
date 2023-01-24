@@ -222,6 +222,9 @@ void startLMS(void const * argument)
   uint8_t xAxisControl = 0;
   uint8_t rckControl = 0;
 
+  uint8_t socketControl = 0;
+
+  uint32_t delay = 1;
   uint32_t start = 0;
   uint32_t stop = 0;
   uint32_t delta = 0;
@@ -234,131 +237,129 @@ void startLMS(void const * argument)
 		delta = stop - start;
 		start = HAL_GetTick();
 		reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
-		if((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0){
+		if(((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0)){
 			if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
-				  sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
-				  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
-				  if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
-					  //error handler
-					  for(;;);
-				  }
-				  if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the telegram message from the LMS
-					  //error handler
-					  for(;;);
-				  }
-				  disconnect(0);
-				  close(0);
-				  for(int j = 0; j <= retVal-1; j++){
-					  if(LMS_recv[j] == 0x20){
-						  //Each data point counted after a comma
-						  LMS_commaCounter++;
+				sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
+				reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					//error handler
+					for(;;);
+				}
+				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the telegram message from the LMS
+					//error handler
+					for(;;);
+				}
+			    disconnect(0);
+				close(0);
+				for(int j = 0; j <= retVal-1; j++){
+				   if(LMS_recv[j] == 0x20){
+					  //Each data point counted after a comma
+					  LMS_commaCounter++;
+				   }
+				   if(LMS_commaCounter == 25){
+
+					  //on the 25th data point, the data amount can be found
+					  j++;
+					  while(LMS_recv[j] != 0x20){
+						  LMS_dataRawAmount[i++] = LMS_recv[j++];
 					  }
-					  if(LMS_commaCounter == 25){
-						  //on the 25th data point, the data amount can be found
+					  j--;
+					  i = 0;
+					  LMS_dataAmount = strtol((char *)LMS_dataRawAmount, NULL, 16);
+					} else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
+					  for(int x = 0; x <= LMS_dataAmount-1; x++){
 						  j++;
 						  while(LMS_recv[j] != 0x20){
-							  LMS_dataRawAmount[i++] = LMS_recv[j++];
+							  LMS_dataRaw[i++] = LMS_recv[j++];
 						  }
-						  j--;
+						  LMS_commaCounter++;
 						  i = 0;
-						  LMS_dataAmount = strtol((char *)LMS_dataRawAmount, NULL, 16);
-					  } else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
-						  for(int x = 0; x <= LMS_dataAmount-1; x++){
-							  j++;
-							  while(LMS_recv[j] != 0x20){
-								  LMS_dataRaw[i++] = LMS_recv[j++];
-							  }
-							  LMS_commaCounter++;
-							  i = 0;
-							  LMS_data = strtol((char *)LMS_dataRaw, NULL, 16);
-							  for(int z = 0; z <= 3; z++){
-								  LMS_dataRaw[z] = 0;
-							  }
-							  LMS_measData[x] = LMS_data;
+						  LMS_data = strtol((char *)LMS_dataRaw, NULL, 16);
+						  for(int z = 0; z <= 3; z++){
+							  LMS_dataRaw[z] = 0;
 						  }
-						  j--;
-					  } else if(LMS_recv[j] == 0x03){
-						  LMS_commaCounter = 0;
-						  //Start the algorithm
-						  /* Filter */
-
-						  /* Polar to Cartesian */
-						  angle = startAngle+CORRECTION;
-						  for(int x = 0; x <= LMS_dataAmount-1; x++){
-							  //From Polar coordinates to cartesian coordinates.
-							  LMS_calcDataX[x] = LMS_measData[x]*cos((angle*PI)/180);
-							  LMS_calcDataY[x] = LMS_measData[x]*sin((angle*PI)/180);
-							  angle = angle + resolution;
-							  if(LMS_calcDataY[x] < THRESHOLD){
-								  //Only take data below the given threshold.
-								  LMS_dataArrayX[x] = LMS_calcDataX[x];
-								  LMS_dataArrayY[x] = LMS_calcDataY[x];
-								  LMS_measArray[x] = LMS_measData[x];
-							  } else {
-								  //everything else zero.
-								  LMS_dataArrayX[x] = 0;
-								  LMS_dataArrayY[x] = 0;
-								  LMS_measArray[x] = 0;
-							  }
+						  LMS_measData[x] = LMS_data;
+					  }
+					  j--;
+					} else if(LMS_recv[j] == 0x03){
+					  LMS_commaCounter = 0;
+					  //Start the algorithm
+					  /* Filter */
+					  /* Polar to Cartesian */
+					  angle = startAngle+CORRECTION;
+					  for(int x = 0; x <= LMS_dataAmount-1; x++){
+						  //From Polar coordinates to cartesian coordinates.
+						  LMS_calcDataX[x] = LMS_measData[x]*cos((angle*PI)/180);
+						  LMS_calcDataY[x] = LMS_measData[x]*sin((angle*PI)/180);
+						  angle = angle + resolution;
+						  if(LMS_calcDataY[x] < THRESHOLD){
+							  //Only take data below the given threshold.
+							  LMS_dataArrayX[x] = LMS_calcDataX[x];
+							  LMS_dataArrayY[x] = LMS_calcDataY[x];
+							  LMS_measArray[x] = LMS_measData[x];
+						  } else {
+							  //everything else zero.
+							  LMS_dataArrayX[x] = 0;
+							  LMS_dataArrayY[x] = 0;
+							  LMS_measArray[x] = 0;
 						  }
-						  /* Determine rocks */
-						  for(int x = 0; x <= LMS_dataAmount-1; x++){
-							  /* check rock points (X axis only)*/
-							  if(LMS_measArray[x] != 0 && status == 0){
-								  startWidth = LMS_dataArrayX[x];
-								  if(rck[rockCount].startPointX > 0){//check if previous measurement already detected rock and calculate the length which will gradually add up
-									  //check if this rck struct isn't filled with another parameter from another rock.
-
-									  //check if the axis don't differentiate too much
-									  if(rck[rockCount].startPointX <= x+MAX_DIFFERENCE_X && rck[rockCount].startPointX >= x-MAX_DIFFERENCE_X){
-										  rck[rockCount].startPointX = x;
-										  rck[rockCount].lengthS.lengthStep++;
-										  rck[rockCount].lengthS.ticks[rck[rockCount].lengthS.lengthStep] = delta;
-										  xAxisControl = 0;
-									  } else { //If so than save it and wait till the algorithm checks for the next end, if it also differentiate too much
-										  if(xAxisControl == 2){//if both end differentiate too much then reset PointX values and calculate the final length and height
-											  rck[rockCount].startPointX = 0;
-											  rck[rockCount].endPointX = 0;
-										  } else {//if only one end differentiate too much, it is consider still as one rock. the measurement continues
-											  xAxisControl = 1;
-											  rck[rockCount].startPointX = x;
-										  }
-									  }
-								  } else {//If not then start new rock measurement
+					  }
+					  /* Determine rocks */
+					  for(int x = 0; x <= LMS_dataAmount-1; x++){
+						  /* check rock points (X axis only)*/
+						  if(LMS_measArray[x] != 0 && status == 0){
+							  startWidth = LMS_dataArrayX[x];
+							  if(rck[rockCount].startPointX > 0){//check if previous measurement already detected rock and calculate the length which will gradually add up
+								  //check if this rck struct isn't filled with another parameter from another rock.
+								  //check if the axis don't differentiate too much
+								  if(rck[rockCount].startPointX <= x+MAX_DIFFERENCE_X && rck[rockCount].startPointX >= x-MAX_DIFFERENCE_X){
 									  rck[rockCount].startPointX = x;
-									  do{
-										  //compare the value with the other values to check if there is an shift in rocks.
-										  if(rockCount != rckControl){
-											  if(rck[rckControl].startPointX <= rck[rockCount].startPointX+MAX_DIFFERENCE_X && rck[rckControl].startPointX >= rck[rockCount].startPointX+MAX_DIFFERENCE_X){
-												  rck[rckControl].startPointX = x;
-												  rck[rckControl].lengthS.lengthStep++;
-												  rck[rckControl].lengthS.ticks[rck[rockCount].lengthS.lengthStep] = delta;
-												  break;
-											  }
-										  }
-										  rckControl++;
-									  }while(rckControl <= 4);
-									  if(rckControl >= 5){
+									  rck[rockCount].lengthS.lengthStep++;
+									  rck[rockCount].lengthS.ticks[rck[rockCount].lengthS.lengthStep] = delta;
+									  xAxisControl = 0;
+								  } else { //If so than save it and wait till the algorithm checks for the next end, if it also differentiate too much
+									  if(xAxisControl == 2){//if both end differentiate too much then reset PointX values and calculate the final length and height
+										  rck[rockCount].startPointX = 0;
+										  rck[rockCount].endPointX = 0;
+									  } else {//if only one end differentiate too much, it is consider still as one rock. the measurement continues
+										  xAxisControl = 1;
 										  rck[rockCount].startPointX = x;
-										  rck[rockCount].lengthS.lengthStep++;
-										  rck[rockCount].lengthS.ticks[rck[rockCount].lengthS.lengthStep] = delta;
 									  }
-									  rckControl = 0;
 								  }
-								  status++;
-							  } else if(LMS_measArray[x] == 0 && status != 0){
-								  x--;
-								  endWidth = LMS_dataArrayX[x];
-								  if(rck[rockCount].endPointX > 0){//check if previous measurement already detected rock
-									  //check if this erck block isn't filled with another parameter from another rock.
-									  if(rck[rockCount].endPointX <= x+MAX_DIFFERENCE_X && rck[rockCount].endPointX >= x-MAX_DIFFERENCE_X){//check if the axis don't differentiate too much
-										  rck[rockCount].endPointX = x;
-										  xAxisControl = 0;
-									  }else{//If so than save it and wait till the algorithm for the next end also differentiate too much
-										  if(xAxisControl == 1){//if both end differentiate too much then reset PointX values and calculate the final length
-											  rck[rockCount].startPointX = 0;
-											  rck[rockCount].endPointX = 0;
-
+							  } else {//If not then start new rock measurement
+								  rck[rockCount].startPointX = x;
+								  do{
+									  //compare the value with the other values to check if there is an shift in rocks.
+									  if(rockCount != rckControl){
+										  if(rck[rckControl].startPointX <= rck[rockCount].startPointX+MAX_DIFFERENCE_X && rck[rckControl].startPointX >= rck[rockCount].startPointX+MAX_DIFFERENCE_X){
+											  rck[rckControl].startPointX = x;
+											  rck[rckControl].lengthS.lengthStep++;
+											  rck[rckControl].lengthS.ticks[rck[rockCount].lengthS.lengthStep] = delta;
+											  break;
+										  }
+									  }
+									  rckControl++;
+								  }while(rckControl <= 4);
+								  if(rckControl >= 5){
+									  rck[rockCount].startPointX = x;
+									  rck[rockCount].lengthS.lengthStep++;
+									  rck[rockCount].lengthS.ticks[rck[rockCount].lengthS.lengthStep] = delta;
+								  }
+								  rckControl = 0;
+							  }
+							  status++;
+						  } else if(LMS_measArray[x] == 0 && status != 0){
+							  x--;
+							  endWidth = LMS_dataArrayX[x];
+							  if(rck[rockCount].endPointX > 0){//check if previous measurement already detected rock
+								  //check if this erck block isn't filled with another parameter from another rock.
+								  if(rck[rockCount].endPointX <= x+MAX_DIFFERENCE_X && rck[rockCount].endPointX >= x-MAX_DIFFERENCE_X){//check if the axis don't differentiate too much
+									  rck[rockCount].endPointX = x;
+									  xAxisControl = 0;
+								  }else{//If so than save it and wait till the algorithm for the next end also differentiate too much
+									  if(xAxisControl == 1){//if both end differentiate too much then reset PointX values and calculate the final length
+										  rck[rockCount].startPointX = 0;
+										  rck[rockCount].endPointX = 0;
 										  } else {//if only one end differentiate too much, it is consider still as one rock. the measurement continues
 											  xAxisControl = 2;
 											  rck[rockCount].endPointX = x;
@@ -432,17 +433,19 @@ void startLMS(void const * argument)
 						  rockCount = 0;
 						  angle = 0;
 						  /* Log all data points for matlab */
-//						  for(int x = 0; x <= LMS_dataAmount-1; x++){
-//							  if(x < LMS_dataAmount-1){
-//								  sprintf((char *)UART_buf, "%d,", LMS_calcRawData[x]);
-//								  HAL_UART_Transmit(&huart2, UART_buf, strlen(UART_buf), 1);
-//							  } else if(x >= LMS_dataAmount-1) {
-//								  sprintf((char *)UART_buf, "%d,,%d\r\n", LMS_calcRawData[x], (int)delta);
-//								  HAL_UART_Transmit(&huart2, UART_buf, strlen(UART_buf), 1);
-//							  }
-//						  }
+	//						  for(int x = 0; x <= LMS_dataAmount-1; x++){
+	//							  if(x < LMS_dataAmount-1){
+	//								  sprintf((char *)UART_buf, "%d,", LMS_calcRawData[x]);
+	//								  HAL_UART_Transmit(&huart2, UART_buf, strlen(UART_buf), 1);
+	//							  } else if(x >= LMS_dataAmount-1) {
+	//								  sprintf((char *)UART_buf, "%d,,%d\r\n", LMS_calcRawData[x], (int)delta);
+	//								  HAL_UART_Transmit(&huart2, UART_buf, strlen(UART_buf), 1);
+	//							  }
+	//						  }
 					  }
 				  }
+			  } else {
+
 			  }
 		}
 	}
@@ -519,17 +522,27 @@ void startIO(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	HAL_UART_Receive(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data), 1000);
-	sscanf((char *)MEAS_data, "%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+	vTaskDelay(5);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+	for(int x = 0; x <= sizeof(MEAS_data); x++){
+		MEAS_data[x] = 0;
+	}
 	lock = 1;
 	reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
 	sprintf((char *)IO_buf, "%s,%.2f,%.2f,%.2f,%d,%d,%d\r\n", NMEA, measTemp, measAmpMax, measFreq, rck[0].height, rck[0].width, rck[0].length);
 	if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
+		close(1);
+		if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+		  //error handler
+		  while(1);
+		}
 	}
 	if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_RESET){//check interrupt pin
 		if((retValIO = recvfrom(1, IO_recv, sizeof(IO_recv), (uint8_t *)IO_IP, 0)) < 0){
 			//error handler
+			for(;;);
 		} else{
 			for(int x = retValIO; x <= 50-1; x++){
 				IO_recv[x] = 0;
@@ -656,12 +669,6 @@ void startIO(void const * argument)
 						close(0);
 					}
 				}
-			}
-			reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-			close(1);
-			if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
-			  //error handler
-			  while(1);
 			}
 		}
 	}

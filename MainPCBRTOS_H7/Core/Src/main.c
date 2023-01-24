@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "dma.h"
 #include "i2c.h"
 #include "spi.h"
 #include "usart.h"
@@ -104,12 +105,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_I2C1_Init();
-  MX_SPI1_Init();
+  MX_DMA_Init();
   MX_SPI4_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
+  MX_I2C1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
   //Initialise the W5500 Ethernet controller
   W5500Init();
 
@@ -224,7 +227,7 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_I2C1
                               |RCC_PERIPHCLK_SPI1|RCC_PERIPHCLK_SPI4;
   PeriphClkInitStruct.PLL3.PLL3M = 5;
-  PeriphClkInitStruct.PLL3.PLL3N = 56;
+  PeriphClkInitStruct.PLL3.PLL3N = 48;
   PeriphClkInitStruct.PLL3.PLL3P = 4;
   PeriphClkInitStruct.PLL3.PLL3Q = 4;
   PeriphClkInitStruct.PLL3.PLL3R = 4;
@@ -242,7 +245,11 @@ void PeriphCommonClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  sscanf((char *)MEAS_data, "%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
+}
 /* USER CODE END 4 */
 
 /**

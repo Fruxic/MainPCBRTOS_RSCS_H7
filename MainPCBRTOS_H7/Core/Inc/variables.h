@@ -17,7 +17,7 @@ extern unsigned char LMS_buf[100];
 extern unsigned char IO_recv[100];
 extern unsigned char IO_buf[100];
 //
-extern unsigned char MEAS_data[50];
+extern unsigned char MEAS_data[21];
 //
 extern int retValIO;
 extern int retVal;

@@ -6,7 +6,7 @@
  */
 
 const unsigned char LMS_IP[4] = {10, 16, 8, 100};
-const unsigned char IO_IP[4] = {10, 16, 7, 198};
+const unsigned char IO_IP[4] = {10, 16, 7, 195};
 //
 unsigned char LMS_recv[3000];
 unsigned char LMS_buf[100];
@@ -14,7 +14,7 @@ unsigned char LMS_buf[100];
 unsigned char IO_recv[100];
 unsigned char IO_buf[100];
 //
-unsigned char MEAS_data[50];
+unsigned char MEAS_data[21];
 //
 int retValIO = 0;
 int retVal = 0;

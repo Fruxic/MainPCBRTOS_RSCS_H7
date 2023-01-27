@@ -13,6 +13,7 @@
 /*Type Defines*/
 extern SPI_HandleTypeDef hspi1;
 extern SPI_HandleTypeDef hspi4;
+//extern IWDG_HandleTypeDef hiwdg1;
 
 /*Defines*/
 #define TRUE 1
@@ -92,16 +93,14 @@ void LMS_settings(void){
 	                          .sn 	= {255, 255, 255, 0},					// Subnet mask
 	                          .gw 	= {10, 16, 8, 0}};				    // Gateway address
 	  wizchip_setnetinfo(&netInfo);
-	  wizchip_getnetinfo(&netInfo);
 }
 
 void IO_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
 	                          .ip 	= {10, 16, 7, 200},					    // IP address
-	                          .sn 	= {255, 255, 255, 0},					// Subnet mask
+	                          .sn 	= {255, 255, 255, 128},					// Subnet mask
 	                          .gw 	= {10, 16, 7, 0}};				    // Gateway address
 	  wizchip_setnetinfo(&netInfo);
-	  wizchip_getnetinfo(&netInfo);
 
 	  /* Set interrupt */
 	  setSn_IMR(1, Sn_IR_RECV);
@@ -111,7 +110,7 @@ void IO_settings(void){
 
 void W5500Init(){
 	uint8_t tmp;
-	uint8_t memsize[2][8]= {{4, 4, 2, 2, 2, 2, 0, 0},{4, 4, 2, 2, 2, 2, 0, 0}};
+	uint8_t memsize[2][8]= {{8, 8, 0, 0, 0, 0, 0, 0},{8, 8, 0, 0, 0, 0, 0, 0}};
 
 	LMS_deselect(); //CS HIGH by default
 	IO_deselect(); //CS HIGH by default
@@ -121,6 +120,7 @@ void W5500Init(){
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET);
 	tmp = 0xFF;
 	while(tmp--);
+//	HAL_IWDG_Refresh(&hiwdg1);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_SET);
 
@@ -132,6 +132,7 @@ void W5500Init(){
 	if(ctlwizchip(CW_INIT_WIZCHIP, (void*)memsize) == -1){
 		while(1); // Initialisation failed!
 	}
+//	HAL_IWDG_Refresh(&hiwdg1);
 	/*Initialise MAC, IP, and the rest for LMS here*/
 	LMS_settings();
 
@@ -140,6 +141,7 @@ void W5500Init(){
 	if(ctlwizchip(CW_INIT_WIZCHIP, (void*)memsize) == -1){
 		while(1); // Initialisation failed!
 	}
+//	HAL_IWDG_Refresh(&hiwdg1);
 	/*Initialise MAC, IP, and the rest for IO here*/
 	IO_settings();
 }

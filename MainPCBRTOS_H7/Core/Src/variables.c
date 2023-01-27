@@ -4,17 +4,21 @@
  *  Created on: Jan 17, 2023
  *      Author: Q6Q
  */
+#include "defines.h"
 
-const unsigned char LMS_IP[4] = {10, 16, 8, 100};
-const unsigned char IO_IP[4] = {10, 16, 7, 195};
+const char LMS_IP[4] = {10, 16, 8, 100};
+const char IO_IP[4] = {10, 16, 7, 213};
 //
-unsigned char LMS_recv[3000];
-unsigned char LMS_buf[100];
+char LMS_recv[4096];
+char LMS_buf[100];
 //
-unsigned char IO_recv[100];
-unsigned char IO_buf[100];
+char IO_recv[100];
+char IO_buf[4096];
 //
-unsigned char MEAS_data[21];
+char MEAS_data[21];
+char LMS_pointCloudPolar[4096];
+char LMS_pointCloudX[4096];
+char LMS_pointCloudY[4096];
 //
 int retValIO = 0;
 int retVal = 0;
@@ -31,6 +35,10 @@ float resolution = 0;
 unsigned int freq = 0;
 unsigned int speed = 0;
 //
-float flashRead[4];
+float flashRead[FLASH_ARRAYSIZE];
 //
 char lock = 0;
+int output = 0;
+//
+char update[] = "Configuring....";
+char measError[] = "Measurement PCB not connected...";

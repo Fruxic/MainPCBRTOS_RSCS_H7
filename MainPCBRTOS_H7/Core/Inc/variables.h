@@ -8,16 +8,19 @@
 #ifndef INC_VARIABLES_H_
 #define INC_VARIABLES_H_
 
-extern const unsigned char LMS_IP[4];
-extern const unsigned char IO_IP[4];
+extern const char LMS_IP[4];
+extern const char IO_IP[4];
 //
-extern unsigned char LMS_recv[3000];
-extern unsigned char LMS_buf[100];
+extern char LMS_recv[4096];
+extern char LMS_buf[100];
 //
-extern unsigned char IO_recv[100];
-extern unsigned char IO_buf[100];
+extern char IO_recv[100];
+extern char IO_buf[4096];
 //
-extern unsigned char MEAS_data[21];
+extern char MEAS_data[21];
+extern char LMS_pointCloudPolar[3000];
+extern char LMS_pointCloudX[3000];
+extern char LMS_pointCloudY[3000];
 //
 extern int retValIO;
 extern int retVal;
@@ -34,8 +37,12 @@ extern float resolution;
 extern unsigned int freq;
 extern unsigned int speed;
 //
-extern float flashRead[4];
+extern float flashRead[FLASH_ARRAYSIZE];
 //
 extern char lock;
+extern int output;
+//
+extern char update[];
+extern char measError[];
 
 #endif /* INC_VARIABLES_H_ */

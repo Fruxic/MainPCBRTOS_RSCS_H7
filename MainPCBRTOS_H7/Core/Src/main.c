@@ -112,7 +112,21 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+//  HAL_IWDG_Refresh(&hiwdg1);
+
+  //Start UART DMA
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
+
+  //Recover parameters from flash memory
+  //Read the flash for the parameters needed for the algorithm
+  Flash_Read_Data(FLASH_PARAMETER, (uint32_t *)flashRead, FLASH_ARRAYSIZE);
+  startAngle = flashRead[0];
+  endAngle = flashRead[1];
+  resolution = flashRead[2];
+  freq = flashRead[3];
+  Flash_Read_Data(FLASH_SPEED, (uint32_t *)flashRead, 1);
+  speed = flashRead[0];
+
   //Initialise the W5500 Ethernet controller
   W5500Init();
 
@@ -128,6 +142,7 @@ int main(void)
 	  //error handler
 	  for(;;);
   }
+//  HAL_IWDG_Refresh(&hiwdg1);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
@@ -228,8 +243,8 @@ void PeriphCommonClock_Config(void)
                               |RCC_PERIPHCLK_SPI1|RCC_PERIPHCLK_SPI4;
   PeriphClkInitStruct.PLL3.PLL3M = 5;
   PeriphClkInitStruct.PLL3.PLL3N = 48;
-  PeriphClkInitStruct.PLL3.PLL3P = 4;
-  PeriphClkInitStruct.PLL3.PLL3Q = 4;
+  PeriphClkInitStruct.PLL3.PLL3P = 3;
+  PeriphClkInitStruct.PLL3.PLL3Q = 3;
   PeriphClkInitStruct.PLL3.PLL3R = 4;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_2;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;

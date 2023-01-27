@@ -12,8 +12,10 @@
 #define CORRECTION						2.5
 
 #define PORT							30188
-#define NMEA							"$PRSCD"
-#define DATAPOINTMAX					512
+#define NMEA_DATA						"$PVRSCD"
+#define NMEA_POINT						"$PVRSCP"
+#define NMEA_POINTX						"$PVRSCX"
+#define NMEA_POINTY						"$PVRSCY"
 
 #define TELEGRAM_LOGIN					"sMN SetAccessMode 04 81BE23AA"
 #define TELEGRAM_SETSCAN_ONE			"sMN mLMPsetscancfg"
@@ -28,13 +30,17 @@
 #define TELEGRAM_SCAN_ONE	 			"sRN LMDscandata"
 
 //Flash memory allocations
-#define FLASH_SPEED						0x08000000 //(F4)
-#define FLASH_PARAMETER					0x08020000 //(F4)
+#define FLASH_SPEED						0x08020000
+#define FLASH_PARAMETER					0x08080000
+#define FLASH_ARRAYSIZE					4
 
 #define THRESHOLD						1340 //in millimeters
 #define BELT							1410 //in millimeters
-#define MAX_DIFFERENCE_X				5
-#define MAX_DIFFERENCE_Y				15
+#define MAXINDEXDIFF_X      			5
+#define MAXHEIGHTDIFF_Y     			10  //in mm
+#define MAXROCKS            			10
+#define SPEED              				154 //in mm/s
+#define DATAPOINTMAX					512
 
 #define SHT31_ADDR	0x44<<1
 

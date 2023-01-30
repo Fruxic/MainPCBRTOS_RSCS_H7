@@ -195,15 +195,21 @@ void startLMS(void const * argument)
   /* USER CODE BEGIN startLMS */
   uint16_t LMS_measData[DATAPOINTMAX];
   int16_t LMS_calcDataX[DATAPOINTMAX];
-  int16_t LMS_calcDataY[DATAPOINTMAX];
-  uint8_t LMS_dataRawAmount[4] = {0, 0, 0, 0};
+  uint16_t LMS_calcDataY[DATAPOINTMAX];
+  char LMS_dataRawAmount[6] = {0, 0, 0, 0 ,0 ,0};
   uint16_t LMS_dataAmount = 0;
-  uint8_t LMS_dataRaw[4] = {0, 0, 0, 0};
+  char LMS_dataRaw[8] = {0, 0, 0, 0, 0 ,0 ,0 ,0};
   uint16_t LMS_data = 0;
-  uint8_t LMS_commaCounter = 0;
+  uint16_t LMS_commaCounter = 0;
   uint16_t LMS_measArray[DATAPOINTMAX];
   uint16_t i = 0;
-  char strAppend[6];
+  char strAppend[8];
+  char strAppendX[8];
+  char strAppendY[8];
+  uint32_t strCount = 0;
+  uint32_t strCountX = 0;
+  uint32_t strCountY = 0;
+
 
   uint8_t status = 0;
   uint8_t statusTwo = 0;
@@ -212,11 +218,11 @@ void startLMS(void const * argument)
   uint16_t indexCounter = 0;
   uint8_t rockCount = 0;
   int16_t LMS_dataArrayX[DATAPOINTMAX];
-  int16_t LMS_dataArrayY[DATAPOINTMAX];
-  int16_t startWidth = 0;
-  int16_t endWidth = 0;
-  uint16_t heightTemp = 0;
-  uint16_t widthTemp = 0;
+  uint16_t LMS_dataArrayY[DATAPOINTMAX];
+  int32_t startWidth = 0;
+  int32_t endWidth = 0;
+  uint32_t heightTemp = 0;
+  uint32_t widthTemp = 0;
 
   float angle;
 
@@ -236,8 +242,6 @@ void startLMS(void const * argument)
   for(;;)
   {
 	if(lock == 0){
-	    xAxisRightShiftStatus = 0;
-	    xAxisLeftShiftStatus = 0;
 //		HAL_IWDG_Refresh(&hiwdg1);
 		//Timer for distance calculation
 		stop  = HAL_GetTick();
@@ -273,8 +277,9 @@ void startLMS(void const * argument)
 					  j--;
 					  i = 0;
 					  LMS_dataAmount = strtol((char *)LMS_dataRawAmount, NULL, 16);
+					  bzero(LMS_dataRawAmount, sizeof(LMS_dataRawAmount));
 					} else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
-					  for(int x = 0; x <= LMS_dataAmount-1; x++){
+					  for(int x = 0; x < LMS_dataAmount; x++){
 						  j++;
 						  while(LMS_recv[j] != 0x20){
 							  LMS_dataRaw[i++] = LMS_recv[j++];
@@ -282,18 +287,21 @@ void startLMS(void const * argument)
 						  LMS_commaCounter++;
 						  i = 0;
 						  LMS_data = strtol((char *)LMS_dataRaw, NULL, 16);
-						  for(int z = 0; z <= 3; z++){
-							  LMS_dataRaw[z] = 0;
-						  }
+						  bzero(LMS_dataRaw, sizeof(LMS_dataRaw));
 						  LMS_measData[x] = LMS_data;
 					  }
 					  if(output == 1 || output == 2){
-						  for(int x = 0; x <= LMS_dataAmount-1; x++){
+						  for(int x = 0; x < LMS_dataAmount; x++){
 							  sprintf((char *)strAppend, "%d,", LMS_measData[x]);
-							  strncat(LMS_pointCloudPolar, strAppend, strlen(strAppend));
+							  strCount += strlen(strAppend);
+							  if(strCount < MTU){
+								  strncat(LMS_pointCloudPolarOne, strAppend, strlen(strAppend));
+							  } else if (strCount >= MTU && strCount < MTU*2){
+								  strncat(LMS_pointCloudPolarTwo, strAppend, strlen(strAppend));
+							  }
 						  }
 						  reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-						  sprintf((char *)IO_buf, "%s,%s\r\n", NMEA_POINT, LMS_pointCloudPolar);
+						  sprintf((char *)IO_buf, "%s,%s", NMEA_POINT, LMS_pointCloudPolarOne);
 						  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 							  //error handler
 							  close(1);
@@ -302,10 +310,24 @@ void startLMS(void const * argument)
 								  while(1);
 							  }
 						  }
-						  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
-						  for(int x = 0; x <= sizeof(LMS_pointCloudPolar); x++){
-							  LMS_pointCloudPolar[x] = 0;
+						  if(strCount >= MTU){
+							  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudPolarTwo);
+							  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+								  //error handler
+								  close(1);
+								  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+									  //error handler
+									  while(1);
+								  }
+							  }
 						  }
+						  bzero(IO_buf, sizeof(IO_buf));
+						  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
+						  for(int x = 0; x <= sizeof(LMS_pointCloudPolarOne); x++){
+							  LMS_pointCloudPolarOne[x] = 0;
+							  LMS_pointCloudPolarTwo[x] = 0;
+						  }
+						  strCount = 0;
 					  }
 					  j--;
 					} else if(LMS_recv[j] == 0x03){
@@ -315,8 +337,8 @@ void startLMS(void const * argument)
 					  /* Filter */
 
 					  /* Polar to Cartesian */
-					  angle = startAngle+CORRECTION;
-					  for(int x = 0; x <= LMS_dataAmount-1; x++){
+					  angle = startAngle;
+					  for(int x = 0; x < LMS_dataAmount; x++){
 						  //From Polar coordinates to cartesian coordinates.
 						  LMS_calcDataX[x] = LMS_measData[x]*cos((angle*PI)/180);
 						  LMS_calcDataY[x] = LMS_measData[x]*sin((angle*PI)/180);
@@ -334,14 +356,25 @@ void startLMS(void const * argument)
 						  }
 					  }
 					  if(output == 3){
-						  for(int x = 0; x <= LMS_dataAmount-1; x++){
-							  sprintf((char *)strAppend, "%d,", LMS_calcDataX[x]);
-							  strncat(LMS_pointCloudX, strAppend, strlen(strAppend));
-							  sprintf((char *)strAppend, "%d,", LMS_calcDataY[x]);
-							  strncat(LMS_pointCloudY, strAppend, strlen(strAppend));
+						  for(int x = 0; x < LMS_dataAmount; x++){
+							  sprintf((char *)strAppendX, "%d,", LMS_calcDataX[x]);
+							  strCountX += strlen(strAppendX);
+							  sprintf((char *)strAppendY, "%d,", LMS_calcDataY[x]);
+							  strCountY += strlen(strAppendY);
+							  if(strCountX < MTU){
+								  strncat(LMS_pointCloudXOne, strAppendX, strlen(strAppendX));
+							  } else if (strCountX >= MTU && strCountX < MTU*2){
+								  strncat(LMS_pointCloudXTwo, strAppendX, strlen(strAppendX));
+							  }
+							  if(strCountY < MTU){
+								  strncat(LMS_pointCloudYOne, strAppendY, strlen(strAppendY));
+							  } else if (strCountY >= MTU && strCountY < MTU*2){
+								  strncat(LMS_pointCloudYTwo, strAppendY, strlen(strAppendY));
+							  }
+
 						  }
 						  reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-						  sprintf((char *)IO_buf, "%s,%s\r\n", NMEA_POINTX, LMS_pointCloudX);
+						  sprintf((char *)IO_buf, "%s,%s", NMEA_POINTX, LMS_pointCloudXOne);
 						  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 							  //error handler
 							  close(1);
@@ -350,7 +383,19 @@ void startLMS(void const * argument)
 								  while(1);
 							  }
 						  }
-						  sprintf((char *)IO_buf, "%s,%s\r\n", NMEA_POINTY, LMS_pointCloudY);
+						  if(strCountX >= MTU){
+							  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudXTwo);
+							  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+								  //error handler
+								  close(1);
+								  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+									  //error handler
+									  while(1);
+								  }
+							  }
+						  }
+						  bzero(IO_buf, sizeof(IO_buf));
+						  sprintf((char *)IO_buf, "%s,%s", NMEA_POINTY, LMS_pointCloudYOne);
 						  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 							  //error handler
 							  close(1);
@@ -359,10 +404,26 @@ void startLMS(void const * argument)
 								  while(1);
 							  }
 						  }
-						  for(int x = 0; x <= sizeof(LMS_pointCloudX); x++){
-							  LMS_pointCloudX[x] = 0;
-							  LMS_pointCloudY[x] = 0;
+						  if(strCountY >= MTU){
+							  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudYOne);
+							  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+								  //error handler
+								  close(1);
+								  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+									  //error handler
+									  while(1);
+								  }
+							  }
 						  }
+						  bzero(IO_buf, sizeof(IO_buf));
+						  for(int x = 0; x <= sizeof(LMS_pointCloudXOne); x++){
+							  LMS_pointCloudXOne[x] = 0;
+							  LMS_pointCloudYOne[x] = 0;
+							  LMS_pointCloudXTwo[x] = 0;
+							  LMS_pointCloudYTwo[x] = 0;
+						  }
+						  strCountX = 0;
+						  strCountY = 0;
 						  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 					  }
 //-----------------------------------------------------Determine rocks----------------------------------------------------------//
@@ -526,9 +587,11 @@ void startLMS(void const * argument)
 					            }
 					        }
 					    }
-						  statusThree = 0;
-						  rockCount = 0;
-						  angle = 0;
+						statusThree = 0;
+						rockCount = 0;
+						angle = 0;
+					    xAxisRightShiftStatus = 0;
+					    xAxisLeftShiftStatus = 0;
 					  }
 				  }
 			  }
@@ -595,7 +658,8 @@ void startIO(void const * argument)
   /* USER CODE BEGIN startIO */
   char NMEArecv[7];
 
-  int tempSpeed = 0;
+  short tempSpeed = 0;
+  short tempOutput = 0;
 
   char LMS_state = '0';
   uint8_t LMS_dataCounter = 0;
@@ -640,6 +704,7 @@ void startIO(void const * argument)
 			  while(1);
 			}
 		}
+		bzero(IO_buf, sizeof(IO_buf));
 	}
 	if(HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_4) == GPIO_PIN_RESET){//check interrupt pin
 		if((retValIO = recvfrom(1, IO_recv, sizeof(IO_recv), (uint8_t *)IO_IP, 0)) < 0){
@@ -664,7 +729,14 @@ void startIO(void const * argument)
 				Flash_Write_NUM(FLASH_SPEED, speed);
 			}
 		}else if(strcmp((char *)NMEArecv, "$PVRSCO") == 0){
-			sscanf((char *)IO_recv, "%[^,],%d", NMEArecv, &output);
+			sscanf((char *)IO_recv, "%[^,],%d", NMEArecv, &tempOutput);
+			if(tempOutput != output){
+				output = tempOutput;
+				//Run once for timeout handler
+				Flash_Write_NUM(FLASH_OUTPUT, output);
+				//Save the values in the Flash
+				Flash_Write_NUM(FLASH_OUTPUT, output);
+			}
 		}else if(strcmp((char *)NMEArecv, "$PVRSCC") == 0){
 			sprintf((char *)IO_buf, "%s\r\n", update);
 			if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){

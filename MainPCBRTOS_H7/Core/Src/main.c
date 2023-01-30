@@ -126,6 +126,8 @@ int main(void)
   freq = flashRead[3];
   Flash_Read_Data(FLASH_SPEED, (uint32_t *)flashRead, 1);
   speed = flashRead[0];
+  Flash_Read_Data(FLASH_OUTPUT, (uint32_t *)flashRead, 1);
+  output = flashRead[0];
 
   //Initialise the W5500 Ethernet controller
   W5500Init();

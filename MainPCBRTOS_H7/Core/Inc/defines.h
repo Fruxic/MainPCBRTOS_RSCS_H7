@@ -30,6 +30,7 @@
 #define TELEGRAM_SCAN_ONE	 			"sRN LMDscandata"
 
 //Flash memory allocations
+#define FLASH_OUTPUT					0x08040000
 #define FLASH_SPEED						0x08020000
 #define FLASH_PARAMETER					0x08080000
 #define FLASH_ARRAYSIZE					4
@@ -41,6 +42,7 @@
 #define MAXROCKS            			10
 #define SPEED              				154 //in mm/s
 #define DATAPOINTMAX					512
+#define MTU								1460
 
 #define SHT31_ADDR	0x44<<1
 

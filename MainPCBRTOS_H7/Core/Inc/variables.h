@@ -15,12 +15,15 @@ extern char LMS_recv[4096];
 extern char LMS_buf[100];
 //
 extern char IO_recv[100];
-extern char IO_buf[4096];
+extern char IO_buf[2048];
 //
 extern char MEAS_data[21];
-extern char LMS_pointCloudPolar[3000];
-extern char LMS_pointCloudX[3000];
-extern char LMS_pointCloudY[3000];
+extern char LMS_pointCloudPolarOne[1460];
+extern char LMS_pointCloudXOne[1460];
+extern char LMS_pointCloudYOne[1460];
+extern char LMS_pointCloudPolarTwo[1460];
+extern char LMS_pointCloudXTwo[1460];
+extern char LMS_pointCloudYTwo[1460];
 //
 extern int retValIO;
 extern int retVal;

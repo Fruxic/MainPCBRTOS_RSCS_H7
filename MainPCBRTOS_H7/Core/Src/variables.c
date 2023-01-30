@@ -13,12 +13,15 @@ char LMS_recv[4096];
 char LMS_buf[100];
 //
 char IO_recv[100];
-char IO_buf[4096];
+char IO_buf[2048];
 //
 char MEAS_data[21];
-char LMS_pointCloudPolar[4096];
-char LMS_pointCloudX[4096];
-char LMS_pointCloudY[4096];
+char LMS_pointCloudPolarOne[1460];
+char LMS_pointCloudXOne[1460];
+char LMS_pointCloudYOne[1460];
+char LMS_pointCloudPolarTwo[1460];
+char LMS_pointCloudXTwo[1460];
+char LMS_pointCloudYTwo[1460];
 //
 int retValIO = 0;
 int retVal = 0;

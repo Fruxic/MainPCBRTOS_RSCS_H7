@@ -102,15 +102,15 @@ void IO_settings(void){
 	                          .gw 	= {10, 16, 7, 0}};				    // Gateway address
 	  wizchip_setnetinfo(&netInfo);
 
-	  /* Set interrupt */
-	  setSn_IMR(1, Sn_IR_RECV);
-	  setSIMR(0x02);
-	  setSIR(0x00);
+//	  /* Set interrupt */
+//	  setSn_IMR(1, Sn_IR_RECV);
+//	  setSIMR(0x02);
+//	  setSIR(0x00);
 }
 
 void W5500Init(){
 	uint8_t tmp;
-	uint8_t memsize[2][8]= {{8, 8, 0, 0, 0, 0, 0, 0},{8, 8, 0, 0, 0, 0, 0, 0}};
+	uint8_t memsize[2][8]= {{4, 4, 0, 0, 0, 0, 0, 0},{4, 4, 0, 0, 0, 0, 0, 0}};
 
 	LMS_deselect(); //CS HIGH by default
 	IO_deselect(); //CS HIGH by default
@@ -120,7 +120,6 @@ void W5500Init(){
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET);
 	tmp = 0xFF;
 	while(tmp--);
-//	HAL_IWDG_Refresh(&hiwdg1);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_SET);
 
@@ -132,7 +131,6 @@ void W5500Init(){
 	if(ctlwizchip(CW_INIT_WIZCHIP, (void*)memsize) == -1){
 		while(1); // Initialisation failed!
 	}
-//	HAL_IWDG_Refresh(&hiwdg1);
 	/*Initialise MAC, IP, and the rest for LMS here*/
 	LMS_settings();
 
@@ -141,7 +139,6 @@ void W5500Init(){
 	if(ctlwizchip(CW_INIT_WIZCHIP, (void*)memsize) == -1){
 		while(1); // Initialisation failed!
 	}
-//	HAL_IWDG_Refresh(&hiwdg1);
 	/*Initialise MAC, IP, and the rest for IO here*/
 	IO_settings();
 }

@@ -12,9 +12,10 @@ extern const char LMS_IP[4];
 extern const char IO_IP[4];
 //
 extern char LMS_recv[4096];
-extern char LMS_buf[100];
+extern char LMS_buf[128];
 //
-extern char IO_recv[100];
+extern char IO_recv[128];
+extern char IO_recvTwo[128];
 extern char IO_buf[2048];
 //
 extern char MEAS_data[21];
@@ -44,6 +45,7 @@ extern float flashRead[FLASH_ARRAYSIZE];
 //
 extern char lock;
 extern int output;
+extern int chipSelect;
 //
 extern char update[];
 extern char measError[];

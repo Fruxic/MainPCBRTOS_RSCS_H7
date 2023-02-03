@@ -10,9 +10,10 @@ const char LMS_IP[4] = {10, 16, 8, 100};
 const char IO_IP[4] = {10, 16, 7, 213};
 //
 char LMS_recv[4096];
-char LMS_buf[100];
+char LMS_buf[128];
 //
-char IO_recv[100];
+char IO_recv[128];
+char IO_recvTwo[128];
 char IO_buf[2048];
 //
 char MEAS_data[21];
@@ -42,6 +43,7 @@ float flashRead[FLASH_ARRAYSIZE];
 //
 char lock = 0;
 int output = 0;
+int chipSelect = 0;
 //
 char update[] = "Configuring....";
 char measError[] = "Measurement PCB not connected...";

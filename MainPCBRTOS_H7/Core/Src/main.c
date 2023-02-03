@@ -112,8 +112,6 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-//  HAL_IWDG_Refresh(&hiwdg1);
-
   //Start UART DMA
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
 
@@ -138,13 +136,13 @@ int main(void)
 	  for(;;);
   }
 
-  //Initialise Ethernet module for IO-server
+  //Initialise io-server UDP coms
   reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
   if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
-	  //error handler
-	  for(;;);
+	 //error handler
+	 for(;;);
   }
-//  HAL_IWDG_Refresh(&hiwdg1);
+  //Send what is saved in the Flash memory to the VOCAM
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */

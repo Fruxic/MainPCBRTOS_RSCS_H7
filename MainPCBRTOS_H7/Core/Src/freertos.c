@@ -64,6 +64,9 @@ struct rockBuf{
 
 struct rock rck[MAXROCKS];
 struct rockBuf rckBuf[MAXROCKS];
+
+RTC_TimeTypeDef gTime;
+RTC_DateTypeDef gDate;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -531,8 +534,7 @@ void startLMS(void const * argument)
 								rckControl = 0;
 							}
 						}
-
-						/* calculate dimensions rock */
+//---------------------------------- calculate dimensions rock --------------------------------------------------//
 						if(rockCount >= 1 && statusTwo == 1){
 							//A status variable to check if the stone is present or not
 							statusThree = 1;
@@ -622,6 +624,7 @@ void startHumidity(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+	HAL_IWDG_Refresh(&hiwdg1);
 	if((ret = HAL_I2C_Master_Transmit(&hi2c1, SHT31_ADDR, I2C_trans, 2, HAL_MAX_DELAY)) != HAL_OK){
 		//error handler
 		for(;;);
@@ -658,6 +661,8 @@ void startIO(void const * argument)
   unsigned char tempOutput = 0;
   short speedOutputCount = 0;
 
+  char time[10];
+
   char LMS_state = '0';
   unsigned char LMS_dataCounter = 0;
   float flashArr[4];
@@ -670,7 +675,7 @@ void startIO(void const * argument)
   for(;;)
   {
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-	vTaskDelay(1);
+	vTaskDelay(10);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 
 	lock = 1;
@@ -687,10 +692,12 @@ void startIO(void const * argument)
 		   }
 		}
 	}
-	bzero(MEAS_data, sizeof(MEAS_data));
+//	bzero(MEAS_data, sizeof(MEAS_data));
 
 	if(output == 0 || output == 2 || output == 3){
-		sprintf((char *)IO_buf, "%s,%.2f,%.2f,%.2f,%d,%d,%d\r\n", NMEA_DATA, measTemp, measAmpMax, measFreq, rck[0].height, rck[0].width, rck[0].length);
+		HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN); //Stress test run time
+		HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+		sprintf((char *)IO_buf, "%s,%.2f,%.2f,%.2f,%d,%d,%d,%d,%d,%d\r\n", NMEA_DATA, measTemp, measAmpMax, measFreq, gTime.Hours, gTime.Minutes, gTime.Seconds, rck[0].height, rck[0].width, rck[0].length);
 		if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 			//error handler
 			close(1);

@@ -40,7 +40,8 @@ extern HAL_StatusTypeDef ret;
 extern I2C_HandleTypeDef hi2c1;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
-//extern IWDG_HandleTypeDef hiwdg1;
+extern IWDG_HandleTypeDef hiwdg1;
+extern RTC_HandleTypeDef hrtc;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

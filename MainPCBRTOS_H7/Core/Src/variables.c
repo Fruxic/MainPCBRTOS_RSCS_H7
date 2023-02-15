@@ -7,7 +7,7 @@
 #include "defines.h"
 
 const char LMS_IP[4] = {10, 16, 8, 100};
-const char IO_IP[4] = {10, 16, 7, 213};
+const char IO_IP[4] = {10, 16, 6, 213};
 //
 char LMS_recv[4096];
 char LMS_buf[128];

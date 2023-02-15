@@ -16,6 +16,7 @@
 #define NMEA_POINT						"$PVRSCP"
 #define NMEA_POINTX						"$PVRSCX"
 #define NMEA_POINTY						"$PVRSCY"
+#define NMEA_FLASH						"$PVRSCF"
 
 #define TELEGRAM_LOGIN					"sMN SetAccessMode 04 81BE23AA"
 #define TELEGRAM_SETSCAN_ONE			"sMN mLMPsetscancfg"

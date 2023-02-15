@@ -97,7 +97,7 @@ void LMS_settings(void){
 
 void IO_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
-	                          .ip 	= {10, 16, 7, 200},					    // IP address
+	                          .ip 	= {10, 16, 6, 189},					    // IP address
 	                          .sn 	= {255, 255, 255, 128},					// Subnet mask
 	                          .gw 	= {10, 16, 7, 0}};				    // Gateway address
 	  wizchip_setnetinfo(&netInfo);

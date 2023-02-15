@@ -21,6 +21,8 @@
 #include "cmsis_os.h"
 #include "dma.h"
 #include "i2c.h"
+#include "iwdg.h"
+#include "rtc.h"
 #include "spi.h"
 #include "usart.h"
 #include "usb_device.h"
@@ -111,6 +113,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
+  MX_IWDG1_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   //Start UART DMA
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
@@ -142,7 +146,29 @@ int main(void)
 	 //error handler
 	 for(;;);
   }
-  //Send what is saved in the Flash memory to the VOCAM
+  HAL_Delay(100);
+  //Send what is saved in the Flash memory to the VOCAM/IO-server
+  sprintf((char *)IO_buf, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 1);
+  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+	  //error handler
+	  close(1);
+	  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+		  //error handler
+		  NVIC_SystemReset();
+		  for(;;);
+	  }
+  }
+  HAL_Delay(100);
+  sprintf((char *)IO_buf, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 0);
+  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+	  //error handler
+	  close(1);
+	  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+		  //error handler
+		  NVIC_SystemReset();
+		  for(;;);
+	  }
+  }
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
@@ -189,8 +215,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 5;
@@ -260,10 +287,10 @@ void PeriphCommonClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  sscanf((char *)MEAS_data, "%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+  sscanf((char *)MEAS_data, "0%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
+  bzero(MEAS_data, sizeof(MEAS_data));
 }
 /* USER CODE END 4 */
 

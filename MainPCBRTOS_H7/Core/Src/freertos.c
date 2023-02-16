@@ -213,7 +213,6 @@ void startLMS(void const * argument)
   uint32_t strCountX = 0;
   uint32_t strCountY = 0;
 
-
   uint8_t status = 0;
   uint8_t statusTwo = 0;
   uint8_t statusThree = 0;
@@ -260,24 +259,45 @@ void startLMS(void const * argument)
 					  NVIC_SystemReset();
 					  for(;;);
 				  }
-				  if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the telegram message from the LMS
+				  if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the telegram message from the LMS
 					  //error handler
 					  NVIC_SystemReset();
 					  for(;;);
 				  }
+				  if(retVal >= MTU){
+					  if((retVal += recv(0, (uint8_t *)LMS_recvTwo, sizeof(LMS_recvTwo))) <= 0){ //Receive the telegram message from the LMS
+						  //error handler
+						  NVIC_SystemReset();
+						  for(;;);
+					  }
+					  if(retVal >= MTU*2){
+						  if((retVal += recv(0, (uint8_t *)LMS_recvThree, sizeof(LMS_recvThree))) <= 0){ //Receive the telegram message from the LMS
+							  //error handler
+							  NVIC_SystemReset();
+							  for(;;);
+						  }
+					  }
+				  }
 				  disconnect(0);
 				  close(0);
+				  sprintf(LMS_recvTotal, "%s%s%s", LMS_recv, LMS_recvTwo, LMS_recvThree);
+				  for(int x = retVal; x <= sizeof(LMS_recvTotal); x++){
+					  LMS_recvTotal[x] = 0;
+				  }
+				  bzero(LMS_recv, sizeof(LMS_recv));
+				  bzero(LMS_recvTwo, sizeof(LMS_recvTwo));
+				  bzero(LMS_recvThree, sizeof(LMS_recvThree));
 //---------------------------------------------Split Data-----------------------------------------------------------------//
 				  for(int j = 0; j < retVal; j++){
-					  if(LMS_recv[j] == 0x20){
+					  if(LMS_recvTotal[j] == 0x20){
 						  //Each data point counted after a comma
 						  LMS_commaCounter++;
 					  }
 					  if(LMS_commaCounter == 25){
 						  //on the 25th data point, the data amount can be found
 						  j++;
-						  while(LMS_recv[j] != 0x20){
-							  LMS_dataRawAmount[i++] = LMS_recv[j++];
+						  while(LMS_recvTotal[j] != 0x20){
+							  LMS_dataRawAmount[i++] = LMS_recvTotal[j++];
 						  }
 						  j--;
 						  i = 0;
@@ -286,8 +306,8 @@ void startLMS(void const * argument)
 					  } else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
 						  for(int x = 0; x < LMS_dataAmount; x++){
 							  j++;
-							  while(LMS_recv[j] != 0x20){
-								  LMS_dataRaw[i++] = LMS_recv[j++];
+							  while(LMS_recvTotal[j] != 0x20 && LMS_recvTotal[j] != 0x0){
+								  LMS_dataRaw[i++] = LMS_recvTotal[j++];
 							  }
 							  LMS_commaCounter++;
 							  i = 0;
@@ -296,7 +316,7 @@ void startLMS(void const * argument)
 							  LMS_measData[x] = LMS_data;
 						  }
 						  j--;
-					  } else if(LMS_recv[j] == 0x03){
+					  } else if(LMS_recvTotal[j] == 0x03){
 						  LMS_commaCounter = 0;
 						  break;
 					  }
@@ -329,11 +349,13 @@ void startLMS(void const * argument)
 							  strncat(LMS_pointCloudPolarOne, strAppend, strlen(strAppend));
 						  } else if (strCount >= MTU && strCount < MTU*2){
 							  strncat(LMS_pointCloudPolarTwo, strAppend, strlen(strAppend));
+						  } else if (strCount >= MTU*2 && strCount < MTU*3){
+							  strncat(LMS_pointCloudPolarThree, strAppend, strlen(strAppend));
 						  }
 					  }
 					  reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-					  sprintf((char *)IO_buf, "%s,%s", NMEA_POINT, LMS_pointCloudPolarOne);
-					  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+					  sprintf(IO_buf, "%s,%s", NMEA_POINT, LMS_pointCloudPolarOne);
+					  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 						  //error handler
 						  close(1);
 						  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -341,22 +363,35 @@ void startLMS(void const * argument)
 							  NVIC_SystemReset();
 							  while(1);
 						  }
-					  }
-					  if(strCount >= MTU){
-						  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudPolarTwo);
-						  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
-							  //error handler
-							  close(1);
-							  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+						  if(strCount >= MTU){
+							  sprintf(IO_buf, "%s\r\n", LMS_pointCloudPolarTwo);
+							  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 								  //error handler
-								  NVIC_SystemReset();
-								  while(1);
+								  close(1);
+								  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+									  //error handler
+									  NVIC_SystemReset();
+									  while(1);
+								  }
+							  }
+							  if(strCount >= MTU*2){
+								  sprintf(IO_buf, "%s\r\n", LMS_pointCloudPolarThree);
+								  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+									  //error handler
+									  close(1);
+									  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+										  //error handler
+										  NVIC_SystemReset();
+										  while(1);
+									  }
+								  }
 							  }
 						  }
 					  }
 					  bzero(IO_buf, sizeof(IO_buf));
 					  bzero(LMS_pointCloudPolarOne, sizeof(LMS_pointCloudPolarOne));
 					  bzero(LMS_pointCloudPolarTwo, sizeof(LMS_pointCloudPolarTwo));
+					  bzero(LMS_pointCloudPolarThree, sizeof(LMS_pointCloudPolarThree));
 					  strCount = 0;
 					  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 				  } else if(output == 3){ //Send Cartesian values to IO-server
@@ -369,16 +404,20 @@ void startLMS(void const * argument)
 							  strncat(LMS_pointCloudXOne, strAppendX, strlen(strAppendX));
 						  } else if (strCountX >= MTU && strCountX < MTU*2){
 							  strncat(LMS_pointCloudXTwo, strAppendX, strlen(strAppendX));
+						  } else if (strCountX >= MTU*2 && strCountX < MTU*3){
+							  strncat(LMS_pointCloudXThree, strAppendX, strlen(strAppendX));
 						  }
 						  if(strCountY < MTU){
 							  strncat(LMS_pointCloudYOne, strAppendY, strlen(strAppendY));
 						  } else if (strCountY >= MTU && strCountY < MTU*2){
 							  strncat(LMS_pointCloudYTwo, strAppendY, strlen(strAppendY));
+						  } else if (strCountY >= MTU*2 && strCountY < MTU*3){
+							  strncat(LMS_pointCloudYThree, strAppendY, strlen(strAppendY));
 						  }
 					  }
 					  reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-					  sprintf((char *)IO_buf, "%s,%s", NMEA_POINTX, LMS_pointCloudXOne);
-					  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+					  sprintf(IO_buf, "%s,%s", NMEA_POINTX, LMS_pointCloudXOne);
+					  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 						  //error handler
 						  close(1);
 						  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -386,22 +425,33 @@ void startLMS(void const * argument)
 							  NVIC_SystemReset();
 							  for(;;);
 						  }
-					  }
-					  if(strCountX >= MTU){
-						  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudXTwo);
-						  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
-							  //error handler
-							  close(1);
-							  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+						  if(strCountX >= MTU){
+							  sprintf(IO_buf, "%s\r\n", LMS_pointCloudXTwo);
+							  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 								  //error handler
-								  NVIC_SystemReset();
-								  for(;;);
+								  close(1);
+								  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+									  //error handler
+									  NVIC_SystemReset();
+									  for(;;);
+								  }
+							  }
+							  if(strCountX >= MTU*2){
+								  sprintf(IO_buf, "%s\r\n", LMS_pointCloudXThree);
+								  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+									  //error handler
+									  close(1);
+									  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+										  //error handler
+										  NVIC_SystemReset();
+										  for(;;);
+									  }
+								  }
 							  }
 						  }
 					  }
-					  bzero(IO_buf, sizeof(IO_buf));
 					  sprintf((char *)IO_buf, "%s,%s", NMEA_POINTY, LMS_pointCloudYOne);
-					  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+					  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 						  //error handler
 						  close(1);
 						  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -409,29 +459,43 @@ void startLMS(void const * argument)
 							  NVIC_SystemReset();
 							  for(;;);
 						  }
-					  }
-					  if(strCountY >= MTU){
-						  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudYOne);
-						  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
-							  //error handler
-							  close(1);
-							  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+						  if(strCountY >= MTU){
+							  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudYTwo);
+							  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 								  //error handler
-								  NVIC_SystemReset();
-								  for(;;);
+								  close(1);
+								  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+									  //error handler
+									  NVIC_SystemReset();
+									  for(;;);
+								  }
+							  }
+							  if(strCountY >= MTU*2){
+								  sprintf((char *)IO_buf, "%s\r\n", LMS_pointCloudYThree);
+								  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+									  //error handler
+									  close(1);
+									  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+										  //error handler
+										  NVIC_SystemReset();
+										  for(;;);
+									  }
+								  }
 							  }
 						  }
 					  }
-					  bzero(IO_buf, sizeof(IO_buf));
 					  bzero(LMS_pointCloudXOne, sizeof(LMS_pointCloudXOne));
 					  bzero(LMS_pointCloudYOne, sizeof(LMS_pointCloudYOne));
 					  bzero(LMS_pointCloudXTwo, sizeof(LMS_pointCloudXTwo));
 					  bzero(LMS_pointCloudYTwo, sizeof(LMS_pointCloudYTwo));
+					  bzero(LMS_pointCloudXThree, sizeof(LMS_pointCloudXThree));
+					  bzero(LMS_pointCloudYThree, sizeof(LMS_pointCloudYThree));
 					  strCountX = 0;
 					  strCountY = 0;
 					  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 				  }
 //-----------------------------------------------------Determine rocks----------------------------------------------------------//
+				  //-------------------STILL UNDER DEVELOPMENT------------------------------//
 				  for(int x = 0; x < LMS_dataAmount; x++){
 						if((LMS_measArray[x] != 0 || rck[rockCount].startIndex == x) && status == 0){ //Check if object is present that has a Y coordinate value above the given THRESHOLD.
 							startWidth = LMS_dataArrayX[x]; //Save the start width from the Cartesian X coordinates, this will be used to calculate the current width.
@@ -534,6 +598,7 @@ void startLMS(void const * argument)
 								rckControl = 0;
 							}
 						}
+						//-------------------STILL UNDER DEVELOPMENT------------------------------//
 //---------------------------------- calculate dimensions rock --------------------------------------------------//
 						if(rockCount >= 1 && statusTwo == 1){
 							//A status variable to check if the stone is present or not
@@ -661,11 +726,12 @@ void startIO(void const * argument)
   unsigned char tempOutput = 0;
   short speedOutputCount = 0;
 
-  char time[10];
-
   char LMS_state = '0';
   unsigned char LMS_dataCounter = 0;
   float flashArr[4];
+
+//  unsigned int LMS_calibrationArray[DATAPOINTMAX];
+//  unsigned char thresholdStatus = 0;
 
   unsigned int resolutionConv = 0;
   unsigned int freqConv = 0;
@@ -680,9 +746,9 @@ void startIO(void const * argument)
 
 	lock = 1;
 	reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
-	if(strcmp((char *)MEAS_data, "") == 0){
-	    sprintf((char *)IO_buf, "%s\r\n", measError);
-		   if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+	if(strcmp(MEAS_data, "") == 0){
+	    sprintf(IO_buf, "%s\r\n", measError);
+		   if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 		   //error handler
 		   close(1);
 		   if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -692,13 +758,12 @@ void startIO(void const * argument)
 		   }
 		}
 	}
-//	bzero(MEAS_data, sizeof(MEAS_data));
 
 	if(output == 0 || output == 2 || output == 3){
 		HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN); //Stress test run time
 		HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
-		sprintf((char *)IO_buf, "%s,%.2f,%.2f,%.2f,%d,%d,%d,%d,%d,%d\r\n", NMEA_DATA, measTemp, measAmpMax, measFreq, gTime.Hours, gTime.Minutes, gTime.Seconds, rck[0].height, rck[0].width, rck[0].length);
-		if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+		sprintf(IO_buf, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u\r\n", NMEA_DATA, measTemp, measAmpMax, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds, rck[0].height, rck[0].width, rck[0].length);
+		if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 			//error handler
 			close(1);
 			if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -709,14 +774,15 @@ void startIO(void const * argument)
 		}
 	}
 
-	if((retValIO = recvfrom(1, IO_recv, sizeof(IO_recv), (uint8_t *)IO_IP, 0)) < 0){
+	if((retValIO = recvfrom(1, (uint8_t *)IO_recv, sizeof(IO_recv), (uint8_t *)IO_IP, 0)) < 0){
 		//error handler
 		NVIC_SystemReset();
 		for(;;);
 	}
-	sscanf((char *)IO_recv, "%[^,]", NMEArecv);
-	if((strcmp((char *)NMEArecv, "$PVRSCS") == 0)){
-		sscanf((char *)IO_recv, "%[^,],%d\r\n", NMEArecv, (int *)&tempSpeed);
+	close(1);
+	sscanf(IO_recv, "%[^,]", NMEArecv);
+	if((strcmp(NMEArecv, "$PVRSCS") == 0)){
+		sscanf(IO_recv, "%[^,],%d\r\n", NMEArecv, (int *)&tempSpeed);
 		speedOutputCount++;
 		speed = tempSpeed;
 		if(tempSpeed != speed && speedOutputCount >= 500){
@@ -727,7 +793,7 @@ void startIO(void const * argument)
 			Flash_Write_NUM(FLASH_SPEED, speed);
 		}
 	} else if((strcmp((char *)NMEArecv, "$PVRSCO") == 0)) {
-		sscanf((char *)IO_recv, "%[^,],%d\r\n", NMEArecv, (int *)&tempOutput);
+		sscanf(IO_recv, "%[^,],%d\r\n", NMEArecv, (int *)&tempOutput);
 		if(tempOutput != output){
 			output = tempOutput;
 			//Run once for timeout handler
@@ -735,9 +801,33 @@ void startIO(void const * argument)
 			//Save the values in the Flash
 			Flash_Write_NUM(FLASH_OUTPUT, output);
 		}
-	} else if((strcmp((char *)NMEArecv, "$PVRSCC") == 0)){
-		sprintf((char *)IO_buf, "%s\r\n", update);
-		if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+	} else if((strcmp(NMEArecv, "$PVRSCK") == 0)){
+//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
+//	    for(int x = 0; x < INTERVAL; x++){
+//	        if(thresholdStatus == 0){
+//	            LMS_highBelt = LMS_lowBelt = LMS_measData[0];
+//	            thresholdStatus++;
+//	        }
+//	        for(int y = 0; y < LMS_dataAmount; y++){
+//	            LMS_calibrationArray[y] += LMS_measData[y];
+//	            if(LMS_lowBelt > LMS_measData[y])
+//	                LMS_lowBelt = LMS_measData[y];
+//	            if(LMS_highBelt < LMS_measData[y])
+//	                LMS_highBelt = LMS_measData[y];
+//	        }
+//	        for(int y = LMS_dataAmount; y < DATAPOINTMAX; y++){
+//	            LMS_calibrationArray[y] = 0;
+//	        }
+//	    }
+//	    for(int x = 0; x < LMS_dataAmount; x++){
+//	        LMS_calibrationArray[x] = LMS_calibrationArray[x]/INTERVAL;
+//	        LMS_belt += LMS_calibrationArray[x];
+//	    }
+//	    LMS_belt = LMS_belt/LMS_dataAmount;
+//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
+	} else if((strcmp(NMEArecv, "$PVRSCC") == 0)){
+		sprintf(IO_buf, "%s\r\n", update);
+		if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 			//error handler
 			close(1);
 			if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -746,7 +836,7 @@ void startIO(void const * argument)
 				for(;;);
 			}
 		}
-		sscanf((char *)IO_recv, "%[^,],%d,%d,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
+		sscanf(IO_recv, "%[^,],%d,%d,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
 		flashArr[0] = startAngle;
 		flashArr[1] = endAngle;
 		flashArr[2] = resolution;
@@ -759,12 +849,12 @@ void startIO(void const * argument)
 		reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 		if((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0){
 			if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
-				sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGIN, 0x03); //Create telegram to be sent to LMS (Ask for one data packet)
-				if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+				sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGIN, 0x03); //Create telegram to be sent to LMS (Ask for one data packet)
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 					//error handler
 					for(;;);
 				}
-				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+				if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
 					//error handler
 					for(;;);
 				}
@@ -772,12 +862,12 @@ void startIO(void const * argument)
 				/* configure setscan parameter LMS */
 				freqConv = freq * 100;
 				resolutionConv = resolution * 10000;
-				sprintf((char *)LMS_buf, "%c%s %X %s %X %s%c", 0x02, TELEGRAM_SETSCAN_ONE, freqConv, TELEGRAM_SETSCAN_TWO, resolutionConv, TELEGRAM_SETSCAN_THREE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-				if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+				sprintf(LMS_buf, "%c%s %X %s %X %s%c", 0x02, TELEGRAM_SETSCAN_ONE, freqConv, TELEGRAM_SETSCAN_TWO, resolutionConv, TELEGRAM_SETSCAN_THREE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 					//error handler
 					for(;;);
 				}
-				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+				if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
 					//error handler
 					for(;;);
 				}
@@ -785,53 +875,54 @@ void startIO(void const * argument)
 				/* configure output parameter LMS */
 				startAngleConv = startAngle * 10000;
 				endAngleConv = endAngle * 10000;
-				sprintf((char *)LMS_buf, "%c%s %X %X%c", 0x02, TELEGRAM_OUTPUT_ONE, startAngleConv, endAngleConv, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-				if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+				sprintf(LMS_buf, "%c%s %X %X%c", 0x02, TELEGRAM_OUTPUT_ONE, startAngleConv, endAngleConv, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 					//error handler
 					for(;;);
 				}
-				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
-					//error handler
-					for(;;);
-				}
-
-				sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_CONFIGURE_FOUR, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-				if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
-					//error handler
-					for(;;);
-				}
-				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+				if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
 					//error handler
 					for(;;);
 				}
 
-				sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_STORE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-				if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+				sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_CONFIGURE_FOUR, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 					//error handler
 					for(;;);
 				}
-				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
-					//error handler
-					for(;;);
-				}
-
-				sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGOUT, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-				if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
-					//error handler
-					for(;;);
-				}
-				if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+				if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
 					//error handler
 					for(;;);
 				}
 
-				sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_DEVICESTATE, 0x03);
+				sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_STORE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					//error handler
+					for(;;);
+				}
+				if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					//error handler
+					for(;;);
+				}
+
+				sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGOUT, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+				if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					//error handler
+					for(;;);
+				}
+				if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					//error handler
+					for(;;);
+				}
+
+				sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_DEVICESTATE, 0x03);
 				while(LMS_state != '1'){
-					if((retVal = send(0, LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					HAL_IWDG_Refresh(&hiwdg1);
+					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 						//error handler
 						for(;;);
 					}
-					if((retVal = recv(0, LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
 						//error handler
 						for(;;);
 					}

@@ -11,7 +11,10 @@
 extern const char LMS_IP[4];
 extern const char IO_IP[4];
 //
-extern char LMS_recv[4096];
+extern char LMS_recv[MTU];
+extern char LMS_recvTwo[MTU];
+extern char LMS_recvThree[MTU];
+extern char LMS_recvTotal[MTU*3];
 extern char LMS_buf[128];
 //
 extern char IO_recv[128];
@@ -19,12 +22,19 @@ extern char IO_recvTwo[128];
 extern char IO_buf[2048];
 //
 extern char MEAS_data[21];
-extern char LMS_pointCloudPolarOne[1460];
-extern char LMS_pointCloudXOne[1460];
-extern char LMS_pointCloudYOne[1460];
-extern char LMS_pointCloudPolarTwo[1460];
-extern char LMS_pointCloudXTwo[1460];
-extern char LMS_pointCloudYTwo[1460];
+extern char LMS_pointCloudPolarOne[MTU];
+extern char LMS_pointCloudXOne[MTU];
+extern char LMS_pointCloudYOne[MTU];
+extern char LMS_pointCloudPolarTwo[MTU];
+extern char LMS_pointCloudXTwo[MTU];
+extern char LMS_pointCloudYTwo[MTU];
+extern char LMS_pointCloudPolarThree[MTU];
+extern char LMS_pointCloudXThree[MTU];
+extern char LMS_pointCloudYThree[MTU];
+//
+extern unsigned int LMS_highBelt;
+extern unsigned int LMS_lowBelt;
+extern unsigned int LMS_belt;
 //
 extern int retValIO;
 extern int retVal;
@@ -41,7 +51,7 @@ extern float resolution;
 extern unsigned int freq;
 extern unsigned int speed;
 //
-extern float flashRead[FLASH_ARRAYSIZE];
+extern float flashRead[4];
 //
 extern char lock;
 extern int output;

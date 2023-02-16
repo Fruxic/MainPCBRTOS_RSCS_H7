@@ -117,18 +117,18 @@ int main(void)
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   //Start UART DMA
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)&MEAS_data, sizeof(MEAS_data));
 
   //Recover parameters from flash memory
   //Read the flash for the parameters needed for the algorithm
-  Flash_Read_Data(FLASH_PARAMETER, (uint32_t *)flashRead, FLASH_ARRAYSIZE);
+  Flash_Read_Data((uint32_t *)FLASH_PARAMETER, (uint32_t *)&flashRead, 4);
   startAngle = flashRead[0];
   endAngle = flashRead[1];
   resolution = flashRead[2];
   freq = flashRead[3];
-  Flash_Read_Data(FLASH_SPEED, (uint32_t *)flashRead, 1);
+  Flash_Read_Data((uint32_t *)FLASH_SPEED, (uint32_t *)&flashRead, 1);
   speed = flashRead[0];
-  Flash_Read_Data(FLASH_OUTPUT, (uint32_t *)flashRead, 1);
+  Flash_Read_Data((uint32_t *)FLASH_OUTPUT, (uint32_t *)&flashRead, 1);
   output = flashRead[0];
 
   //Initialise the W5500 Ethernet controller
@@ -146,10 +146,10 @@ int main(void)
 	 //error handler
 	 for(;;);
   }
-  HAL_Delay(100);
+  HAL_Delay(500);
   //Send what is saved in the Flash memory to the VOCAM/IO-server
-  sprintf((char *)IO_buf, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 1);
-  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+  sprintf(IO_buf, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 1);
+  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 	  //error handler
 	  close(1);
 	  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -158,9 +158,9 @@ int main(void)
 		  for(;;);
 	  }
   }
-  HAL_Delay(100);
-  sprintf((char *)IO_buf, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 0);
-  if((retValIO = sendto(1, IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+  HAL_Delay(500);
+  sprintf(IO_buf, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 0);
+  if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
 	  //error handler
 	  close(1);
 	  if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -270,9 +270,9 @@ void PeriphCommonClock_Config(void)
                               |RCC_PERIPHCLK_SPI1|RCC_PERIPHCLK_SPI4;
   PeriphClkInitStruct.PLL3.PLL3M = 5;
   PeriphClkInitStruct.PLL3.PLL3N = 48;
-  PeriphClkInitStruct.PLL3.PLL3P = 3;
-  PeriphClkInitStruct.PLL3.PLL3Q = 3;
-  PeriphClkInitStruct.PLL3.PLL3R = 4;
+  PeriphClkInitStruct.PLL3.PLL3P = 2;
+  PeriphClkInitStruct.PLL3.PLL3Q = 2;
+  PeriphClkInitStruct.PLL3.PLL3R = 5;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_2;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
@@ -288,8 +288,9 @@ void PeriphCommonClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
-  sscanf((char *)MEAS_data, "0%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)MEAS_data, sizeof(MEAS_data));
+  sscanf(MEAS_data, "%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
+  sscanf(MEAS_data, "%d %f,%f,%f,", &humAlertTwo, &measAmpMax, &measFreq, &measTemp);
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)&MEAS_data, sizeof(MEAS_data));
   bzero(MEAS_data, sizeof(MEAS_data));
 }
 /* USER CODE END 4 */

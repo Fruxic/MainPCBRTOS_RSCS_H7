@@ -34,7 +34,6 @@
 #define FLASH_OUTPUT					0x08040000
 #define FLASH_SPEED						0x08020000
 #define FLASH_PARAMETER					0x08080000
-#define FLASH_ARRAYSIZE					4
 
 #define THRESHOLD						1340 //in millimeters
 #define BELT							1410 //in millimeters
@@ -42,8 +41,9 @@
 #define MAXHEIGHTDIFF_Y     			10  //in mm
 #define MAXROCKS            			10
 #define SPEED              				154 //in mm/s
-#define DATAPOINTMAX					512
+#define DATAPOINTMAX					1024
 #define MTU								1460
+#define INTERVAL                        10
 
 #define SHT31_ADDR	0x44<<1
 

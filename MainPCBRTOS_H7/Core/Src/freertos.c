@@ -916,7 +916,7 @@ void startIO(void const * argument)
 				}
 
 				sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_DEVICESTATE, 0x03);
-				while(LMS_state != '1'){
+				while(LMS_state != '1'){ //Wait till LMS sensor is done configuring
 					HAL_IWDG_Refresh(&hiwdg1);
 					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
 						//error handler

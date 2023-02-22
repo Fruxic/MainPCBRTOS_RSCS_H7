@@ -19,18 +19,18 @@ extern char LMS_buf[128];
 //
 extern char IO_recv[128];
 extern char IO_recvTwo[128];
-extern char IO_buf[2048];
+extern char IO_buf[4096];
 //
 extern char MEAS_data[21];
-extern char LMS_pointCloudPolarOne[MTU];
-extern char LMS_pointCloudXOne[MTU];
-extern char LMS_pointCloudYOne[MTU];
-extern char LMS_pointCloudPolarTwo[MTU];
-extern char LMS_pointCloudXTwo[MTU];
-extern char LMS_pointCloudYTwo[MTU];
-extern char LMS_pointCloudPolarThree[MTU];
-extern char LMS_pointCloudXThree[MTU];
-extern char LMS_pointCloudYThree[MTU];
+extern char LMS_pointCloudPolarOne[2048];
+extern char LMS_pointCloudXOne[2048];
+extern char LMS_pointCloudYOne[2048];
+extern char LMS_pointCloudPolarTwo[2048];
+extern char LMS_pointCloudXTwo[2048];
+extern char LMS_pointCloudYTwo[2048];
+extern char LMS_pointCloudPolarThree[2048];
+extern char LMS_pointCloudXThree[2048];
+extern char LMS_pointCloudYThree[2048];
 //
 extern unsigned int LMS_highBelt;
 extern unsigned int LMS_lowBelt;

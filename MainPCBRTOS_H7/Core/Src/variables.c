@@ -17,18 +17,18 @@ char LMS_buf[128];
 //
 char IO_recv[128];
 char IO_recvTwo[128];
-char IO_buf[2048];
+char IO_buf[4096];
 //
 char MEAS_data[21];
-char LMS_pointCloudPolarOne[MTU];
-char LMS_pointCloudXOne[MTU];
-char LMS_pointCloudYOne[MTU];
-char LMS_pointCloudPolarTwo[MTU];
-char LMS_pointCloudXTwo[MTU];
-char LMS_pointCloudYTwo[MTU];
-char LMS_pointCloudPolarThree[MTU];
-char LMS_pointCloudXThree[MTU];
-char LMS_pointCloudYThree[MTU];
+char LMS_pointCloudPolarOne[2048];
+char LMS_pointCloudXOne[2048];
+char LMS_pointCloudYOne[2048];
+char LMS_pointCloudPolarTwo[2048];
+char LMS_pointCloudXTwo[2048];
+char LMS_pointCloudYTwo[2048];
+char LMS_pointCloudPolarThree[2048];
+char LMS_pointCloudXThree[2048];
+char LMS_pointCloudYThree[2048];
 //
 unsigned int LMS_highBelt = 0;
 unsigned int LMS_lowBelt = 0;

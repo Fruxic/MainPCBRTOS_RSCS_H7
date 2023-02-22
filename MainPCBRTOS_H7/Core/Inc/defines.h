@@ -34,6 +34,7 @@
 #define FLASH_OUTPUT					0x08040000
 #define FLASH_SPEED						0x08020000
 #define FLASH_PARAMETER					0x08080000
+#define FLASH_CALIBRATION				0x08060000
 
 #define THRESHOLD						1340 //in millimeters
 #define BELT							1410 //in millimeters
@@ -43,7 +44,11 @@
 #define SPEED              				154 //in mm/s
 #define DATAPOINTMAX					1024
 #define MTU								1460
+#define VOCAM_MAX						330
 #define INTERVAL                        10
+
+#define EXIT_SUCCESS					0
+#define EXIT_FAILURE					1
 
 #define SHT31_ADDR	0x44<<1
 

@@ -29,6 +29,10 @@
 #define TELEGRAM_DEVICESTATE			"sRN SCdevicestate"
 #define TELEGRAM_REBOOT					"sMN mSCreboot"
 #define TELEGRAM_SCAN_ONE	 			"sRN LMDscandata"
+#define TELEGRAM_DEVICENAME             "sRN DeviceIdent"
+#define TELEGRAM_OUTPUTRANGE            "sRN LMPoutputRange"
+#define TELEGRAM_FREQUENCY              "sRN LMPscancfg"
+#define TELEGRAM_REBOOT                 "sMN mSCreboot"
 
 //Flash memory allocations
 #define FLASH_OUTPUT					0x08040000

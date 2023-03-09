@@ -11,30 +11,30 @@
 extern const char LMS_IP[4];
 extern const char IO_IP[4];
 //
-extern char LMS_recv[MTU];
-extern char LMS_recvTwo[MTU];
-extern char LMS_recvThree[MTU];
-extern char LMS_recvTotal[MTU*3];
-extern char LMS_buf[128];
+extern char LMSrecv_B[MTU];
+extern char LMSrecvTwo_B[MTU];
+extern char LMSrecvThree_B[MTU];
+extern char LMSrecvTotal_B[MTU*3];
+extern char LMStrans_B[128];
 //
-extern char IO_recv[128];
-extern char IO_recvTwo[128];
-extern char IO_buf[4096];
+extern char IOrecv_B[128];
+extern char IOrecvTwo_B[128];
+extern char IOtrans_B[4096];
 //
-extern char MEAS_data[21];
-extern char LMS_pointCloudPolarOne[2048];
-extern char LMS_pointCloudXOne[2048];
-extern char LMS_pointCloudYOne[2048];
-extern char LMS_pointCloudPolarTwo[2048];
-extern char LMS_pointCloudXTwo[2048];
-extern char LMS_pointCloudYTwo[2048];
-extern char LMS_pointCloudPolarThree[2048];
-extern char LMS_pointCloudXThree[2048];
-extern char LMS_pointCloudYThree[2048];
+extern char MEASdata_B[22];
+extern char LMSpointCloudPolarOne_B[2048];
+extern char LMSpointCloudXOne_B[2048];
+extern char LMSpointCloudYOne_B[2048];
+extern char LMSpointCloudPolarTwo_B[2048];
+extern char LMSpointCloudXTwo_B[2048];
+extern char LMSpointCloudYTwo_B[2048];
+extern char LMSpointCloudPolarThree_B[2048];
+extern char LMSpointCloudXThree_B[2048];
+extern char LMSpointCloudYThree_B[2048];
 //
-extern unsigned int LMS_highBelt;
-extern unsigned int LMS_lowBelt;
-extern unsigned int LMS_belt;
+extern unsigned int LMShighBelt_U;
+extern unsigned int LMSlowBelt_U;
+extern unsigned int LMSbelt_U;
 //
 extern int retValIO;
 extern int retVal;
@@ -45,11 +45,16 @@ extern float measAmpMax;
 extern float measFreq;
 extern float measTemp;
 //
+extern unsigned short LMS_measData[DATAPOINTMAX];
+extern short LMS_calcDataX[DATAPOINTMAX];
+extern unsigned short LMS_calcDataY[DATAPOINTMAX];
+//
 extern unsigned int startAngle;
 extern unsigned int endAngle;
 extern float resolution;
 extern unsigned int freq;
 extern unsigned int speed;
+extern unsigned char device;
 //
 extern float flashRead[4];
 //

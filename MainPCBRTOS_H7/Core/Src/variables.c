@@ -6,33 +6,33 @@
  */
 #include "defines.h"
 
-const char LMS_IP[4] = {10, 16, 8, 100};
+const char LMS_IP[4] = {192, 168, 200, 3};
 const char IO_IP[4] = {10, 16, 6, 213};
 //
-char LMS_recv[MTU];
-char LMS_recvTwo[MTU];
-char LMS_recvThree[MTU];
-char LMS_recvTotal[MTU*3];
-char LMS_buf[128];
+char LMSrecv_B[MTU];
+char LMSrecvTwo_B[MTU];
+char LMSrecvThree_B[MTU];
+char LMSrecvTotal_B[MTU*3];
+char LMStrans_B[128];
 //
-char IO_recv[128];
-char IO_recvTwo[128];
-char IO_buf[4096];
+char IOrecv_B[128];
+char IOrecvTwo_B[128];
+char IOtrans_B[4096];
 //
-char MEAS_data[21];
-char LMS_pointCloudPolarOne[2048];
-char LMS_pointCloudXOne[2048];
-char LMS_pointCloudYOne[2048];
-char LMS_pointCloudPolarTwo[2048];
-char LMS_pointCloudXTwo[2048];
-char LMS_pointCloudYTwo[2048];
-char LMS_pointCloudPolarThree[2048];
-char LMS_pointCloudXThree[2048];
-char LMS_pointCloudYThree[2048];
+char MEASdata_B[22];
+char LMSpointCloudPolarOne_B[2048];
+char LMSpointCloudXOne_B[2048];
+char LMSpointCloudYOne_B[2048];
+char LMSpointCloudPolarTwo_B[2048];
+char LMSpointCloudXTwo_B[2048];
+char LMSpointCloudYTwo_B[2048];
+char LMSpointCloudPolarThree_B[2048];
+char LMSpointCloudXThree_B[2048];
+char LMSpointCloudYThree_B[2048];
 //
-unsigned int LMS_highBelt = 0;
-unsigned int LMS_lowBelt = 0;
-unsigned int LMS_belt = 0;
+unsigned int LMShighBelt_U = 0;
+unsigned int LMSlowBelt_U = 0;
+unsigned int LMSbelt_U = 0;
 //
 int retValIO = 0;
 int retVal = 0;
@@ -43,11 +43,16 @@ float measAmpMax = 0;
 float measFreq = 0;
 float measTemp = 0;
 //
+unsigned short LMS_measData[DATAPOINTMAX];
+short LMS_calcDataX[DATAPOINTMAX];
+unsigned short LMS_calcDataY[DATAPOINTMAX];
+//
 unsigned int startAngle = 0;
 unsigned int endAngle = 0;
 float resolution = 0;
 unsigned int freq = 0;
 unsigned int speed = 0;
+unsigned char device = 0;
 //
 unsigned int flashRead[4];
 //

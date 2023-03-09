@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "defines.h"
 #include "variables.h"
+#include "LMS.h"
 #include "socket.h"
 #include "wizchip_conf.h"
 #include "w5500.h"
@@ -40,30 +41,30 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-struct lengthPoint{
-	unsigned short lengthStep;
-	unsigned int ticks[500];
-};
+//struct lengthPoint{
+//	unsigned short lengthStep;
+//	unsigned int ticks[500];
+//};
+//
+//struct rock{
+//	unsigned short startIndex;
+//	unsigned short startIndexMax;
+//	unsigned short endIndex;
+//	unsigned short endIndexMax;
+//	struct lengthPoint lengthS;
+//	unsigned int width;
+//	unsigned int length;
+//	unsigned int height;
+//};
+//
+//struct rockBuf{
+//	unsigned int width;
+//	unsigned int length;
+//	unsigned int height;
+//};
 
-struct rock{
-	unsigned short startIndex;
-	unsigned short startIndexMax;
-	unsigned short endIndex;
-	unsigned short endIndexMax;
-	struct lengthPoint lengthS;
-	unsigned int width;
-	unsigned int length;
-	unsigned int height;
-};
-
-struct rockBuf{
-	unsigned int width;
-	unsigned int length;
-	unsigned int height;
-};
-
-struct rock rck[MAXROCKS];
-struct rockBuf rckBuf[MAXROCKS];
+extern struct rock rck[MAXROCKS];
+extern struct rockBuf rckBuf[MAXROCKS];
 
 RTC_TimeTypeDef gTime;
 RTC_DateTypeDef gDate;
@@ -103,7 +104,6 @@ void startLMS(void const * argument);
 void startHumidity(void const * argument);
 void startIO(void const * argument);
 
-extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* GetIdleTaskMemory prototype (linked to static allocation support) */
@@ -123,51 +123,104 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
 /* USER CODE END GET_IDLE_TASK_MEMORY */
 
 /**
- * @brief  FreeRTOS initialization
- * @param  None
- * @retval None
- */
+  * @brief  FreeRTOS initialization
+  * @param  None
+  * @retval None
+  */
 void MX_FREERTOS_Init(void) {
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
+	//Start UART DMA
+	HAL_UART_Receive_DMA(&huart2, (uint8_t *)&MEASdata_B, sizeof(MEASdata_B));
 
-	/* USER CODE END Init */
+	//Recover parameters from flash memory
+	Flash_Read_Data((uint32_t)FLASH_SPEED, (uint32_t *)&flashRead, 1);
+	speed = flashRead[0];
+	Flash_Read_Data((uint32_t)FLASH_OUTPUT, (uint32_t *)&flashRead, 1);
+	output = flashRead[0];
 
-	/* USER CODE BEGIN RTOS_MUTEX */
+	//Initialise the W5500 Ethernet controller
+	W5500Init();
+	HAL_Delay(1000);
+
+	//Initialise humidity module
+	if((ret = HAL_I2C_IsDeviceReady(&hi2c1, SHT31_ADDR, 1, HAL_MAX_DELAY)) != HAL_OK){
+		//error handler
+		for(;;);
+	}
+
+	reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
+	LMS_getDevice();
+	LMS_getOutputRange();
+	LMS_getFrequencyResolution();
+
+	//Initialise io-server UDP coms
+	reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
+	if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+		//error handler
+		for(;;);
+	}
+	HAL_Delay(500);
+	//Send what is saved in the Flash memory to the VOCAM/IO-server
+	sprintf(IOtrans_B, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 1);
+	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
+		//error handler
+		close(1);
+		if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+			//error handler
+			NVIC_SystemReset();
+			for(;;);
+		}
+	}
+	HAL_Delay(500);
+	sprintf(IOtrans_B, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 0);
+	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
+		//error handler
+		close(1);
+		if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
+			//error handler
+			NVIC_SystemReset();
+			for(;;);
+		}
+	}
+	close(1);
+  /* USER CODE END Init */
+
+  /* USER CODE BEGIN RTOS_MUTEX */
 	/* add mutexes, ... */
-	/* USER CODE END RTOS_MUTEX */
+  /* USER CODE END RTOS_MUTEX */
 
-	/* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
 	/* add semaphores, ... */
-	/* USER CODE END RTOS_SEMAPHORES */
+  /* USER CODE END RTOS_SEMAPHORES */
 
-	/* USER CODE BEGIN RTOS_TIMERS */
+  /* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
-	/* USER CODE END RTOS_TIMERS */
+  /* USER CODE END RTOS_TIMERS */
 
-	/* USER CODE BEGIN RTOS_QUEUES */
+  /* USER CODE BEGIN RTOS_QUEUES */
 	/* add queues, ... */
-	/* USER CODE END RTOS_QUEUES */
+  /* USER CODE END RTOS_QUEUES */
 
-	/* Create the thread(s) */
-	/* definition and creation of Idle */
-	osThreadDef(Idle, startIdle, osPriorityIdle, 0, 128);
-	IdleHandle = osThreadCreate(osThread(Idle), NULL);
+  /* Create the thread(s) */
+  /* definition and creation of Idle */
+  osThreadDef(Idle, startIdle, osPriorityIdle, 0, 128);
+  IdleHandle = osThreadCreate(osThread(Idle), NULL);
 
-	/* definition and creation of LMS */
-	osThreadDef(LMS, startLMS, osPriorityRealtime, 0, 8192);
-	LMSHandle = osThreadCreate(osThread(LMS), NULL);
+  /* definition and creation of LMS */
+  osThreadDef(LMS, startLMS, osPriorityRealtime, 0, 8196);
+  LMSHandle = osThreadCreate(osThread(LMS), NULL);
 
-	/* definition and creation of Humidity */
-	osThreadDef(Humidity, startHumidity, osPriorityNormal, 0, 512);
-	HumidityHandle = osThreadCreate(osThread(Humidity), NULL);
+  /* definition and creation of Humidity */
+  osThreadDef(Humidity, startHumidity, osPriorityNormal, 0, 512);
+  HumidityHandle = osThreadCreate(osThread(Humidity), NULL);
 
-	/* definition and creation of IO */
-	osThreadDef(IO, startIO, osPriorityAboveNormal, 0, 8192);
-	IOHandle = osThreadCreate(osThread(IO), NULL);
+  /* definition and creation of IO */
+  osThreadDef(IO, startIO, osPriorityAboveNormal, 0, 8196);
+  IOHandle = osThreadCreate(osThread(IO), NULL);
 
-	/* USER CODE BEGIN RTOS_THREADS */
+  /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
-	/* USER CODE END RTOS_THREADS */
+  /* USER CODE END RTOS_THREADS */
 
 }
 
@@ -180,15 +233,13 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_startIdle */
 void startIdle(void const * argument)
 {
-	/* init code for USB_DEVICE */
-	MX_USB_DEVICE_Init();
-	/* USER CODE BEGIN startIdle */
+  /* USER CODE BEGIN startIdle */
 	/* Infinite loop */
 	for(;;)
 	{
 		osDelay(1);
 	}
-	/* USER CODE END startIdle */
+  /* USER CODE END startIdle */
 }
 
 /* USER CODE BEGIN Header_startLMS */
@@ -200,10 +251,7 @@ void startIdle(void const * argument)
 /* USER CODE END Header_startLMS */
 void startLMS(void const * argument)
 {
-	/* USER CODE BEGIN startLMS */
-	uint16_t LMS_measData[DATAPOINTMAX];
-	int16_t LMS_calcDataX[DATAPOINTMAX];
-	uint16_t LMS_calcDataY[DATAPOINTMAX];
+  /* USER CODE BEGIN startLMS */
 	char LMS_dataRawAmount[6] = {0, 0, 0, 0 ,0 ,0};
 	uint16_t LMS_dataAmount = 0;
 	char LMS_dataRaw[8] = {0, 0, 0, 0, 0 ,0 ,0 ,0};
@@ -259,35 +307,34 @@ void startLMS(void const * argument)
 			//			  LMS_disconnect();
 			//		  }
 			//-------------------^STILL UNDER DEVELOPMENT^-----------------------------------//
-//---------------------------------------------Get data from LMS-----------------------------------------------------------------//
+			//---------------------------------------------Get data from LMS-----------------------------------------------------------------//
 			reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 			if(((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0)){
 				if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
-					sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
-					reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					sprintf((char *)LMStrans_B, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 						//error handler
 						NVIC_SystemReset();
 						for(;;);
 					}
-					if((retVal = recv(0, (uint8_t *)LMS_recvTotal, sizeof(LMS_recvTotal))) <= 0){ //Receive the telegram message from the LMS
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the telegram message from the LMS
 						//error handler
 						NVIC_SystemReset();
 						for(;;);
 					}
 					disconnect(0);
 					close(0);
-//---------------------------------------------Split Data-----------------------------------------------------------------//
+					//---------------------------------------------Split Data-----------------------------------------------------------------//
 					for(int j = 0; j < retVal; j++){
-						if(LMS_recvTotal[j] == 0x20){
+						if(LMSrecv_B[j] == 0x20){
 							//Each data point counted after a comma
 							LMS_commaCounter++;
 						}
 						if(LMS_commaCounter == 25){
 							//on the 25th data point, the data amount can be found
 							j++;
-							while(LMS_recvTotal[j] != 0x20){
-								LMS_dataRawAmount[i++] = LMS_recvTotal[j++];
+							while(LMSrecv_B[j] != 0x20){
+								LMS_dataRawAmount[i++] = LMSrecv_B[j++];
 							}
 							j--;
 							i = 0;
@@ -296,8 +343,8 @@ void startLMS(void const * argument)
 						} else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
 							for(int x = 0; x < LMS_dataAmount; x++){
 								j++;
-								while(LMS_recvTotal[j] != 0x20 && LMS_recvTotal[j] != 0x0){
-									LMS_dataRaw[i++] = LMS_recvTotal[j++];
+								while(LMSrecv_B[j] != 0x20 && LMSrecv_B[j] != 0x0){
+									LMS_dataRaw[i++] = LMSrecv_B[j++];
 								}
 								LMS_commaCounter++;
 								i = 0;
@@ -306,12 +353,12 @@ void startLMS(void const * argument)
 								LMS_measData[x] = LMS_data;
 							}
 							j--;
-						} else if(LMS_recvTotal[j] == 0x03){
+						} else if(LMSrecv_B[j] == 0x03){
 							LMS_commaCounter = 0;
 							break;
 						}
 					}
-//-------------------------------------------------Polar to Cartesian--------------------------------------------------------------//
+					//-------------------------------------------------Polar to Cartesian--------------------------------------------------------------//
 					angle = startAngle;
 					for(int x = 0; x < LMS_dataAmount; x++){
 						//From Polar coordinates to Cartesian coordinates.
@@ -330,7 +377,7 @@ void startLMS(void const * argument)
 							LMS_measArray[x] = 0;
 						}
 					}
-//-------------------------------------------------Send calculated/decoded values to IO-server--------------------------------------------------------------//
+					//-------------------------------------------------Send calculated/decoded values to IO-server--------------------------------------------------------------//
 					reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
 					if(output == 1 || output == 2){ //Send Polar values to IO-server
 						for(int x = 0; x <= VOCAM_MAX; x++){
@@ -342,15 +389,15 @@ void startLMS(void const * argument)
 								strCountX += strlen(strAppend);
 							}
 							if(strCount < MTU){
-								strncat(LMS_pointCloudPolarOne, strAppend, strlen(strAppend));
+								strncat(LMSpointCloudPolarOne_B, strAppend, strlen(strAppend));
 							} else if (strCount >= MTU && strCount < MTU*2){
-								strncat(LMS_pointCloudPolarTwo, strAppend, strlen(strAppend));
+								strncat(LMSpointCloudPolarTwo_B, strAppend, strlen(strAppend));
 							} else if (strCount >= MTU*2 && strCount < MTU*3){
-								strncat(LMS_pointCloudPolarThree, strAppend, strlen(strAppend));
+								strncat(LMSpointCloudPolarThree_B, strAppend, strlen(strAppend));
 							}
 						}
-						sprintf(IO_buf, "%s,%s", NMEA_POINT, LMS_pointCloudPolarOne);
-						if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+						sprintf(IOtrans_B, "%s,%s", NMEA_POINT, LMSpointCloudPolarOne_B);
+						if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 							//error handler
 							close(1);
 							if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -385,9 +432,9 @@ void startLMS(void const * argument)
 						//						  }
 						//					  }
 						//-------------------^STILL UNDER DEVELOPMENT^-----------------------------------//
-						bzero(LMS_pointCloudPolarOne, sizeof(LMS_pointCloudPolarOne));
-						bzero(LMS_pointCloudPolarTwo, sizeof(LMS_pointCloudPolarTwo));
-						bzero(LMS_pointCloudPolarThree, sizeof(LMS_pointCloudPolarThree));
+						bzero(LMSpointCloudPolarOne_B, sizeof(LMSpointCloudPolarOne_B));
+						bzero(LMSpointCloudPolarTwo_B, sizeof(LMSpointCloudPolarTwo_B));
+						bzero(LMSpointCloudPolarThree_B, sizeof(LMSpointCloudPolarThree_B));
 						strCount = 0;
 					} else if(output == 3){ //Send Cartesian values to VOCAM IO-server
 						for(int x = 0; x < VOCAM_MAX; x++){
@@ -403,22 +450,22 @@ void startLMS(void const * argument)
 								strCountY += strlen(strAppendY);
 							}
 							if(strCountX < MTU){
-								strncat(LMS_pointCloudXOne, strAppendX, strlen(strAppendX));
+								strncat(LMSpointCloudXOne_B, strAppendX, strlen(strAppendX));
 							} else if (strCountX >= MTU && strCountX < MTU*2){
-								strncat(LMS_pointCloudXTwo, strAppendX, strlen(strAppendX));
+								strncat(LMSpointCloudXTwo_B, strAppendX, strlen(strAppendX));
 							} else if (strCountX >= MTU*2 && strCountX < MTU*3){
-								strncat(LMS_pointCloudXThree, strAppendX, strlen(strAppendX));
+								strncat(LMSpointCloudXThree_B, strAppendX, strlen(strAppendX));
 							}
 							if(strCountY < MTU){
-								strncat(LMS_pointCloudYOne, strAppendY, strlen(strAppendY));
+								strncat(LMSpointCloudYOne_B, strAppendY, strlen(strAppendY));
 							} else if (strCountY >= MTU && strCountY < MTU*2){
-								strncat(LMS_pointCloudYTwo, strAppendY, strlen(strAppendY));
+								strncat(LMSpointCloudYTwo_B, strAppendY, strlen(strAppendY));
 							} else if (strCountY >= MTU*2 && strCountY < MTU*3){
-								strncat(LMS_pointCloudYThree, strAppendY, strlen(strAppendY));
+								strncat(LMSpointCloudYThree_B, strAppendY, strlen(strAppendY));
 							}
 						}
-						sprintf((char *)IO_buf, "%s,%s", NMEA_POINTY, LMS_pointCloudYOne);
-						if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+						sprintf((char *)IOtrans_B, "%s,%s", NMEA_POINTY, LMSpointCloudYOne_B);
+						if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 							//error handler
 							close(1);
 							if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -453,8 +500,8 @@ void startLMS(void const * argument)
 						//						  }
 						//					  }
 						//-------------------^STILL UNDER DEVELOPMENT^-----------------------------------//
-						sprintf(IO_buf, "%s,%s", NMEA_POINTX, LMS_pointCloudXOne);
-						if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+						sprintf(IOtrans_B, "%s,%s", NMEA_POINTX, LMSpointCloudXOne_B);
+						if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 							//error handler
 							close(1);
 							if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -489,20 +536,20 @@ void startLMS(void const * argument)
 						//						  }
 						//					  }
 						//-------------------^STILL UNDER DEVELOPMENT^-----------------------------------//
-						bzero(LMS_pointCloudXOne, sizeof(LMS_pointCloudXOne));
-						bzero(LMS_pointCloudYOne, sizeof(LMS_pointCloudYOne));
-						bzero(LMS_pointCloudXTwo, sizeof(LMS_pointCloudXTwo));
-						bzero(LMS_pointCloudYTwo, sizeof(LMS_pointCloudYTwo));
-						bzero(LMS_pointCloudXThree, sizeof(LMS_pointCloudXThree));
-						bzero(LMS_pointCloudYThree, sizeof(LMS_pointCloudYThree));
+						bzero(LMSpointCloudXOne_B, sizeof(LMSpointCloudXOne_B));
+						bzero(LMSpointCloudYOne_B, sizeof(LMSpointCloudYOne_B));
+						bzero(LMSpointCloudXTwo_B, sizeof(LMSpointCloudXTwo_B));
+						bzero(LMSpointCloudYTwo_B, sizeof(LMSpointCloudYTwo_B));
+						bzero(LMSpointCloudXThree_B, sizeof(LMSpointCloudXThree_B));
+						bzero(LMSpointCloudYThree_B, sizeof(LMSpointCloudYThree_B));
 						strCountX = 0;
 						strCountY = 0;
 					}
 					bzero(LMS_calcDataX, sizeof(LMS_calcDataX));
 					bzero(LMS_calcDataY, sizeof(LMS_calcDataY));
 					bzero(LMS_measData, sizeof(LMS_measData));
-//-----------------------------------------------------Determine rocks----------------------------------------------------------//
-            //-------------------STILL UNDER DEVELOPMENT------------------------------//
+					//-----------------------------------------------------Determine rocks----------------------------------------------------------//
+					//-------------------STILL UNDER DEVELOPMENT------------------------------//
 					for(int x = 0; x < LMS_dataAmount; x++){
 						if((LMS_measArray[x] != 0 || rck[rockCount].startIndex == x) && status == 0){ //Check if object is present that has a Y coordinate value above the given THRESHOLD.
 							startWidth = LMS_dataArrayX[x]; //Save the start width from the Cartesian X coordinates, this will be used to calculate the current width.
@@ -605,8 +652,8 @@ void startLMS(void const * argument)
 								rckControl = 0;
 							}
 						}
-		//-------------------^STILL UNDER DEVELOPMENT^------------------------------//
-//---------------------------------- calculate dimensions rock --------------------------------------------------//
+						//-------------------^STILL UNDER DEVELOPMENT^------------------------------//
+						//---------------------------------- calculate dimensions rock --------------------------------------------------//
 						if(rockCount >= 1 && statusTwo == 1){
 							//A status variable to check if the stone is present or not
 							statusThree = 1;
@@ -672,7 +719,7 @@ void startLMS(void const * argument)
 	}
 	// In case we accidentally leave loop
 	osThreadTerminate(NULL);
-	/* USER CODE END startLMS */
+  /* USER CODE END startLMS */
 }
 
 /* USER CODE BEGIN Header_startHumidity */
@@ -684,7 +731,7 @@ void startLMS(void const * argument)
 /* USER CODE END Header_startHumidity */
 void startHumidity(void const * argument)
 {
-	/* USER CODE BEGIN startHumidity */
+  /* USER CODE BEGIN startHumidity */
 	uint8_t I2C_recv[6];
 	uint8_t I2C_trans[2];
 	uint16_t val;
@@ -714,7 +761,7 @@ void startHumidity(void const * argument)
 	}
 	// In case we accidentally leave loop
 	osThreadTerminate(NULL);
-	/* USER CODE END startHumidity */
+  /* USER CODE END startHumidity */
 }
 
 /* USER CODE BEGIN Header_startIO */
@@ -726,7 +773,7 @@ void startHumidity(void const * argument)
 /* USER CODE END Header_startIO */
 void startIO(void const * argument)
 {
-	/* USER CODE BEGIN startIO */
+  /* USER CODE BEGIN startIO */
 	char NMEArecv[7];
 
 	short tempSpeed = 0;
@@ -756,15 +803,24 @@ void startIO(void const * argument)
 	for(;;)
 	{
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-		vTaskDelay(10);
+		vTaskDelay(1);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+		bzero(MEASdata_B, sizeof(MEASdata_B));
+
 		lock = 1;
 		reg_wizchip_cs_cbfunc(IO_select, IO_deselect);
 		if(output == 0 || output == 2 || output == 3){
 			HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN); //Stress test run time
 			HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
-			sprintf(IO_buf, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u\r\n", NMEA_DATA, measTemp, measAmpMax, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds, rck[0].height, rck[0].width, rck[0].length);
-			if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+			sprintf(IOtrans_B, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u"
+					",%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
+					NMEA_DATA, measTemp, measAmpMax, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds,
+					rck[0].height, rck[0].width, rck[0].length, rck[1].height, rck[1].width, rck[1].length,
+					rck[2].height, rck[2].width, rck[2].length, rck[3].height, rck[3].width, rck[3].length,
+					rck[4].height, rck[4].width, rck[4].length, rck[5].height, rck[5].width, rck[5].length,
+					rck[6].height, rck[6].width, rck[6].length, rck[7].height, rck[7].width, rck[7].length,
+					rck[8].height, rck[8].width, rck[8].length, rck[9].height, rck[9].width, rck[9].length);
+			if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 				//error handler
 				close(1);
 				if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -776,14 +832,14 @@ void startIO(void const * argument)
 			measTemp = 0; //package control in the HAL_UART_RxCpltCallback() function in main.c
 		}
 
-		if((retValIO = recvfrom(1, (uint8_t *)IO_recv, sizeof(IO_recv), (uint8_t *)IO_IP, 0)) < 0){
+		if((retValIO = recvfrom(1, (uint8_t *)IOtrans_B, sizeof(IOtrans_B), (uint8_t *)IO_IP, 0)) < 0){
 			//error handler
 			NVIC_SystemReset();
 			for(;;);
 		}
-		sscanf(IO_recv, "%[^,]", NMEArecv);
+		sscanf(IOtrans_B, "%[^,]", NMEArecv);
 		if((strcmp(NMEArecv, "$PVRSCS") == 0)){
-			sscanf(IO_recv, "%[^,],%d\r\n", NMEArecv, (int *)&tempSpeed);
+			sscanf(IOtrans_B, "%[^,],%d\r\n", NMEArecv, (int *)&tempSpeed);
 			speedOutputCount++;
 			speed = tempSpeed;
 			if(tempSpeed != speed && speedOutputCount >= 500){
@@ -794,7 +850,7 @@ void startIO(void const * argument)
 				Flash_Write_NUM(FLASH_SPEED, speed);
 			}
 		} else if((strcmp((char *)NMEArecv, "$PVRSCO") == 0)) {
-			sscanf(IO_recv, "%[^,],%d\r\n", NMEArecv, (int *)&tempOutput);
+			sscanf(IOtrans_B, "%[^,],%d\r\n", NMEArecv, (int *)&tempOutput);
 			if(tempOutput != output){
 				output = tempOutput;
 				//Run once for timeout handler
@@ -803,37 +859,37 @@ void startIO(void const * argument)
 				Flash_Write_NUM(FLASH_OUTPUT, output);
 			}
 		} else if((strcmp(NMEArecv, "$PVRSCK") == 0)){
-//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
+			//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
 			for(int x = 0; x < INTERVAL; x++){
-//---------------------------------------------Get data from LMS-----------------------------------------------------------------//
+				//---------------------------------------------Get data from LMS-----------------------------------------------------------------//
 				reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 				if(((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0)){
 					if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
-						sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
+						sprintf((char *)LMStrans_B, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
 						reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
-						if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+						if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 							//error handler
 							NVIC_SystemReset();
 							for(;;);
 						}
-						if((retVal = recv(0, (uint8_t *)LMS_recvTotal, sizeof(LMS_recvTotal))) <= 0){ //Receive the telegram message from the LMS
+						if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the telegram message from the LMS
 							//error handler
 							NVIC_SystemReset();
 							for(;;);
 						}
 						disconnect(0);
 						close(0);
-//---------------------------------------------Split Data-----------------------------------------------------------------//
+						//---------------------------------------------Split Data-----------------------------------------------------------------//
 						for(int j = 0; j < retVal; j++){
-							if(LMS_recvTotal[j] == 0x20){
+							if(LMSrecv_B[j] == 0x20){
 								//Each data point counted after a comma
 								LMS_commaCounter++;
 							}
 							if(LMS_commaCounter == 25){
 								//on the 25th data point, the data amount can be found
 								j++;
-								while(LMS_recvTotal[j] != 0x20){
-									LMS_dataRawAmount[i++] = LMS_recvTotal[j++];
+								while(LMSrecv_B[j] != 0x20){
+									LMS_dataRawAmount[i++] = LMSrecv_B[j++];
 								}
 								j--;
 								i = 0;
@@ -842,8 +898,8 @@ void startIO(void const * argument)
 							} else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
 								for(int x = 0; x < LMS_dataAmount; x++){
 									j++;
-									while(LMS_recvTotal[j] != 0x20 && LMS_recvTotal[j] != 0x0){
-										LMS_dataRaw[i++] = LMS_recvTotal[j++];
+									while(LMSrecv_B[j] != 0x20 && LMSrecv_B[j] != 0x0){
+										LMS_dataRaw[i++] = LMSrecv_B[j++];
 									}
 									LMS_commaCounter++;
 									i = 0;
@@ -852,7 +908,7 @@ void startIO(void const * argument)
 									LMS_measData[x] = LMS_data;
 								}
 								j--;
-							} else if(LMS_recvTotal[j] == 0x03){
+							} else if(LMSrecv_B[j] == 0x03){
 								LMS_commaCounter = 0;
 								break;
 							}
@@ -860,15 +916,15 @@ void startIO(void const * argument)
 					}
 				}
 				if(thresholdStatus == 0){
-					LMS_highBelt = LMS_lowBelt = LMS_measData[0];
+					LMShighBelt_U = LMSlowBelt_U = LMS_measData[0];
 					thresholdStatus++;
 				}
 				for(int y = 0; y < LMS_dataAmount; y++){
 					LMS_calibrationArray[y] += LMS_measData[y];
-					if(LMS_lowBelt > LMS_measData[y])
-						LMS_lowBelt = LMS_measData[y];
-					if(LMS_highBelt < LMS_measData[y])
-						LMS_highBelt = LMS_measData[y];
+					if(LMSlowBelt_U > LMS_measData[y])
+						LMSlowBelt_U = LMS_measData[y];
+					if(LMShighBelt_U < LMS_measData[y])
+						LMShighBelt_U = LMS_measData[y];
 				}
 				for(int y = LMS_dataAmount; y < DATAPOINTMAX; y++){
 					LMS_calibrationArray[y] = 0;
@@ -876,21 +932,21 @@ void startIO(void const * argument)
 			}
 			for(int x = 0; x < LMS_dataAmount; x++){
 				LMS_calibrationArray[x] = LMS_calibrationArray[x]/INTERVAL;
-				LMS_belt += LMS_calibrationArray[x];
+				LMSbelt_U += LMS_calibrationArray[x];
 			}
-			LMS_belt = LMS_belt/LMS_dataAmount;
+			LMSbelt_U = LMSbelt_U/LMS_dataAmount;
 			//flash the thresholds
-			flashArr[0] = LMS_highBelt;
-			flashArr[1] = LMS_lowBelt;
-			flashArr[2] = LMS_belt;
+			flashArr[0] = LMShighBelt_U;
+			flashArr[1] = LMSlowBelt_U;
+			flashArr[2] = LMSbelt_U;
 			//Run once for timeout handler.
 			Flash_Write_Data(FLASH_CALIBRATION, (uint32_t *)flashArr, 3);
 			//Save the values in the Flash
 			Flash_Write_Data(FLASH_CALIBRATION, (uint32_t *)flashArr, 3);
-//-------------------^STILL UNDER DEVELOPMENT^-----------------------------------//
+			//-------------------^STILL UNDER DEVELOPMENT^-----------------------------------//
 		} else if((strcmp(NMEArecv, "$PVRSCC") == 0)){
-			sprintf(IO_buf, "%s\r\n", update);
-			if((retValIO = sendto(1, (uint8_t *)IO_buf, strlen(IO_buf), (uint8_t *)IO_IP, PORT)) < 0){
+			sprintf(IOtrans_B, "%s\r\n", update);
+			if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 				//error handler
 				close(1);
 				if((retValIO = socket(1, Sn_MR_UDP, PORT, SF_IO_NONBLOCK)) != 1){
@@ -899,7 +955,7 @@ void startIO(void const * argument)
 					for(;;);
 				}
 			}
-			sscanf(IO_recv, "%[^,],%d,%d,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
+			sscanf(IOtrans_B, "%[^,],%d,%d,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
 			flashArr[0] = startAngle;
 			flashArr[1] = endAngle;
 			flashArr[2] = resolution;
@@ -912,12 +968,12 @@ void startIO(void const * argument)
 			reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 			if((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0){
 				if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
-					sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGIN, 0x03); //Create telegram to be sent to LMS (Ask for one data packet)
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_LOGIN, 0x03); //Create telegram to be sent to LMS (Ask for one data packet)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 						//error handler
 						for(;;);
 					}
-					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
 						//error handler
 						for(;;);
 					}
@@ -925,12 +981,12 @@ void startIO(void const * argument)
 					/* configure setscan parameter LMS */
 					freqConv = freq * 100;
 					resolutionConv = resolution * 10000;
-					sprintf(LMS_buf, "%c%s %X %s %X %s%c", 0x02, TELEGRAM_SETSCAN_ONE, freqConv, TELEGRAM_SETSCAN_TWO, resolutionConv, TELEGRAM_SETSCAN_THREE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					sprintf(LMStrans_B, "%c%s %X %s %X %s%c", 0x02, TELEGRAM_SETSCAN_ONE, freqConv, TELEGRAM_SETSCAN_TWO, resolutionConv, TELEGRAM_SETSCAN_THREE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 						//error handler
 						for(;;);
 					}
-					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
 						//error handler
 						for(;;);
 					}
@@ -938,64 +994,64 @@ void startIO(void const * argument)
 					/* configure output parameter LMS */
 					startAngleConv = startAngle * 10000;
 					endAngleConv = endAngle * 10000;
-					sprintf(LMS_buf, "%c%s %X %X%c", 0x02, TELEGRAM_OUTPUT_ONE, startAngleConv, endAngleConv, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					sprintf(LMStrans_B, "%c%s %X %X%c", 0x02, TELEGRAM_OUTPUT_ONE, startAngleConv, endAngleConv, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 						//error handler
 						for(;;);
 					}
-					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
-						//error handler
-						for(;;);
-					}
-
-					sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_CONFIGURE_FOUR, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
-						//error handler
-						for(;;);
-					}
-					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
 						//error handler
 						for(;;);
 					}
 
-					sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_STORE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+					sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_CONFIGURE_FOUR, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 						//error handler
 						for(;;);
 					}
-					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
-						//error handler
-						for(;;);
-					}
-
-					sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_LOGOUT, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
-					if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
-						//error handler
-						for(;;);
-					}
-					if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
 						//error handler
 						for(;;);
 					}
 
-					sprintf(LMS_buf, "%c%s%c", 0x02, TELEGRAM_DEVICESTATE, 0x03);
+					sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_STORE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+						//error handler
+						for(;;);
+					}
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+						//error handler
+						for(;;);
+					}
+
+					sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_LOGOUT, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+					if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+						//error handler
+						for(;;);
+					}
+					if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+						//error handler
+						for(;;);
+					}
+
+					sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_DEVICESTATE, 0x03);
 					while(LMS_state != '1'){ //Wait till LMS sensor is done configuring
 						HAL_IWDG_Refresh(&hiwdg1);
-						if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
+						if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 							//error handler
 							for(;;);
 						}
-						if((retVal = recv(0, (uint8_t *)LMS_recv, sizeof(LMS_recv))) <= 0){ //Receive the data packet from the LMS
+						if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
 							//error handler
 							for(;;);
 						}
 						for(int j = 0; j <= retVal-1; j++){
-							if(LMS_recv[j] == 0x20){
+							if(LMSrecv_B[j] == 0x20){
 								LMS_dataCounter++;
 							}
 							if(LMS_dataCounter == 2){
 								j++;
-								LMS_state = LMS_recv[j];
+								LMS_state = LMSrecv_B[j];
 								LMS_dataCounter = 0;
 								break;
 							}
@@ -1015,78 +1071,10 @@ void startIO(void const * argument)
 	}
 	// In case we accidentally leave loop
 	osThreadTerminate(NULL);
-	/* USER CODE END startIO */
+  /* USER CODE END startIO */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
-//char LMS_connect(void){
-//	  if(((retVal = socket(0, Sn_MR_TCP, 0, 0)) == 0)){
-//		  if((retVal = connect(0, (uint8_t *)LMS_IP, 2111)) == SOCK_OK){ //Open socket with LMS
-//			  return EXIT_SUCCES;
-//		  } else {
-//			  return EXIT_FAILURE;
-//		  }
-//	  } else {
-//		  return EXIT_FAILURE;
-//	  }
-//}
-//
-//void LMS_disconnect(void){
-//	  disconnect(0);
-//	  close(0);
-//}
-//
-//void LMS_receivePoll(void){
-//	  sprintf((char *)LMS_buf, "%c%s%c", 0x02, TELEGRAM_SCAN_ONE, 0x03); //Create telegram to be sent to LMS (Ask for one)
-//	  reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
-//	  if((retVal = send(0, (uint8_t *)LMS_buf, strlen(LMS_buf))) <= 0){ //Send the Telegram to LMS
-//		  //error handler
-//		  NVIC_SystemReset();
-//		  for(;;);
-//	  }
-//	  if((retVal = recv(0, (uint8_t *)LMS_recvTotal, sizeof(LMS_recvTotal))) <= 0){ //Receive the telegram message from the LMS
-//		  //error handler
-//		  NVIC_SystemReset();
-//		  for(;;);
-//	  }
-//}
-//
-//void LMS_splitData(void){
-//	  for(int j = 0; j < retVal; j++){
-//		  if(LMS_recvTotal[j] == 0x20){
-//			  //Each data point counted after a comma
-//			  LMS_commaCounter++;
-//		  }
-//		  if(LMS_commaCounter == 25){
-//			  //on the 25th data point, the data amount can be found
-//			  j++;
-//			  while(LMS_recvTotal[j] != 0x20){
-//				  LMS_dataRawAmount[i++] = LMS_recvTotal[j++];
-//			  }
-//			  j--;
-//			  i = 0;
-//			  LMS_dataAmount = strtol((char *)LMS_dataRawAmount, NULL, 16);
-//			  bzero(LMS_dataRawAmount, sizeof(LMS_dataRawAmount));
-//		  } else if(LMS_commaCounter == 26){ //convert all the data point to single integers in an array
-//			  for(int x = 0; x < LMS_dataAmount; x++){
-//				  j++;
-//				  while(LMS_recvTotal[j] != 0x20 && LMS_recvTotal[j] != 0x0){
-//					  LMS_dataRaw[i++] = LMS_recvTotal[j++];
-//				  }
-//				  LMS_commaCounter++;
-//				  i = 0;
-//				  LMS_data = strtol((char *)LMS_dataRaw, NULL, 16);
-//				  bzero(LMS_dataRaw, sizeof(LMS_dataRaw));
-//				  LMS_measData[x] = LMS_data;
-//			  }
-//			  j--;
-//		  } else if(LMS_recvTotal[j] == 0x03){
-//			  LMS_commaCounter = 0;
-//			  break;
-//		  }
-//	  }
-//}
-//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
+
 /* USER CODE END Application */

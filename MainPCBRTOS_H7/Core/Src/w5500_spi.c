@@ -89,9 +89,9 @@ void wizchip_writeBurst(uint8_t *pBuf, uint16_t len){
 
 void LMS_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
-	                          .ip 	= {10, 16, 8, 99},					    // IP address
+	                          .ip 	= {192, 168, 200, 1},					// IP address
 	                          .sn 	= {255, 255, 255, 0},					// Subnet mask
-	                          .gw 	= {10, 16, 8, 0}};				    // Gateway address
+	                          .gw 	= {192, 168, 200, 0}};				    	// Gateway address
 	  wizchip_setnetinfo(&netInfo);
 }
 
@@ -99,7 +99,7 @@ void IO_settings(void){
 	  wiz_NetInfo netInfo = { .mac 	= {0x00, 0x08, 0xdc, 0xab, 0xcd, 0xef},	// Mac address
 	                          .ip 	= {10, 16, 6, 189},					    // IP address
 	                          .sn 	= {255, 255, 255, 128},					// Subnet mask
-	                          .gw 	= {10, 16, 7, 0}};				    // Gateway address
+	                          .gw 	= {10, 16, 6, 0}};				    	// Gateway address
 	  wizchip_setnetinfo(&netInfo);
 
 //	  /* Set interrupt */

@@ -27,12 +27,12 @@
 extern struct rock rck[MAXROCKS];
 extern struct rockBuf rckBuf[MAXROCKS];
 
-RTC_TimeTypeDef sTime;
-RTC_DateTypeDef sDate;
+RTC_TimeTypeDef gTime;
+RTC_DateTypeDef gDate;
 
 /**
  ********************************************************************************
- * @brief
+ * @brief Open socket of IO-server
  *
  * @param[in]  N/A
  * @param[out] N/A
@@ -45,6 +45,25 @@ unsigned char IO_openSocket(void){
 		return EXIT_FAILURE;
 	} else {
 		return EXIT_SUCCESS;
+	}
+}
+
+/**
+ ********************************************************************************
+ * @brief Open socket of IO-server
+ *
+ * @param[in]  N/A
+ * @param[out] N/A
+ *
+ * @retval
+ *******************************************************************************/
+unsigned char IO_recv(void){
+	if((retValIO = recvfrom(1, (uint8_t *)IOrecv_B, sizeof(IOrecv_B), (uint8_t *)IO_IP, 0)) < 0){
+		//error handler
+		return EXIT_SUCCESS;
+		for(;;);
+	} else {
+		return EXIT_FAILURE;
 	}
 }
 
@@ -80,7 +99,12 @@ unsigned char IO_sendPolarData(void){
 	sprintf(IOtrans_B, "%s,%s", NMEA_POINT, LMSpointCloudPolarOne_B);
 	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
-		return EXIT_FAILURE;
+		IO_close();
+		if(IO_openSocket() == 1){
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
 	}
 	//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
 	//					  if(strCount >= MTU){
@@ -160,7 +184,12 @@ unsigned char IO_sendCartesianData(void){
 	sprintf((char *)IOtrans_B, "%s,%s", NMEA_POINTY, LMSpointCloudYOne_B);
 	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
-		return EXIT_FAILURE;
+		IO_close();
+		if(IO_openSocket() == 1){
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
 	}
 	//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
 	//					  if(strCountY >= MTU){
@@ -191,7 +220,12 @@ unsigned char IO_sendCartesianData(void){
 	sprintf(IOtrans_B, "%s,%s", NMEA_POINTX, LMSpointCloudXOne_B);
 	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
-		return EXIT_FAILURE;
+		IO_close();
+		if(IO_openSocket() == 1){
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
 	}
 	//-------------------STILL UNDER DEVELOPMENT-----------------------------------//
 	//					  if(strCountX >= MTU){
@@ -240,32 +274,26 @@ unsigned char IO_sendCartesianData(void){
  * @retval
  *******************************************************************************/
 unsigned char IO_sendMeasurementData(void){
-
-	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN); //Stress test run time
-	HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-	sprintf(IOtrans_B, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u\r\n", NMEA_DATA, measTemp, measAmpMax, measFreq, humAlertOne, humAlertTwo, sTime.Hours, sTime.Minutes, sTime.Seconds, rck[0].height, rck[0].width, rck[0].length);
+	HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN); //Stress test run time
+	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+	sprintf(IOtrans_B, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u"
+			",%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
+			NMEA_DATA, measTemp, measAmpMax-1, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds,
+			rck[0].height, rck[0].width, rck[0].length, rck[1].height, rck[1].width, rck[1].length,
+			rck[2].height, rck[2].width, rck[2].length, rck[3].height, rck[3].width, rck[3].length,
+			rck[4].height, rck[4].width, rck[4].length, rck[5].height, rck[5].width, rck[5].length,
+			rck[6].height, rck[6].width, rck[6].length, rck[7].height, rck[7].width, rck[7].length,
+			rck[8].height, rck[8].width, rck[8].length, rck[9].height, rck[9].width, rck[9].length);
 	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
-		measTemp = 0; //package control in the HAL_UART_RxCpltCallback() function in main.c
-		return EXIT_FAILURE;
+		IO_close();
+		if(IO_openSocket() == 1){
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
 	}
 	measTemp = 0; //package control in the HAL_UART_RxCpltCallback() function in main.c
-
-//	HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN); //Stress test run time
-//	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
-//	sprintf(IOtrans_B, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u"
-//			",%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
-//			NMEA_DATA, measTemp, measAmpMax, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds,
-//			rck[0].height, rck[0].width, rck[0].length, rck[1].height, rck[1].width, rck[1].length,
-//			rck[2].height, rck[2].width, rck[2].length, rck[3].height, rck[3].width, rck[3].length,
-//			rck[4].height, rck[4].width, rck[4].length, rck[5].height, rck[5].width, rck[5].length,
-//			rck[6].height, rck[6].width, rck[6].length, rck[7].height, rck[7].width, rck[7].length,
-//			rck[8].height, rck[8].width, rck[8].length, rck[9].height, rck[9].width, rck[9].length);
-//	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
-//		//error handler
-//		return EXIT_FAILURE;
-//	}
-//	measTemp = 0; //package control in the HAL_UART_RxCpltCallback() function in main.c
 	return EXIT_SUCCESS;
 }
 
@@ -283,14 +311,37 @@ unsigned char IO_sendConfiguredParameters(void){
 	sprintf(IOtrans_B, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 1);
 	if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 		//error handler
-		return EXIT_FAILURE;
+		IO_close();
+		if(IO_openSocket() == 1){
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
 	} else {
 		HAL_Delay(500);
 		sprintf(IOtrans_B, "%s,%d,%d,%f,%d,%d,%d\r\n", NMEA_FLASH, startAngle, endAngle, resolution, freq, output, 0);
 		if((retValIO = sendto(1, (uint8_t *)IOtrans_B, strlen(IOtrans_B), (uint8_t *)IO_IP, PORT)) < 0){
 			//error handler
-			return EXIT_FAILURE;
+			IO_close();
+			if(IO_openSocket() == 1){
+				//error handler
+				return EXIT_FAILURE;
+				for(;;);
+			}
 		}
 	}
 	return EXIT_SUCCESS;
+}
+
+/**
+ ********************************************************************************
+ * @brief Used to close socket and/or to empty the buffer of the WIZCHIP
+ *
+ * @param[in]  N/A
+ * @param[out] N/A
+ *
+ * @retval
+ *******************************************************************************/
+void IO_close(void){
+	close(1);
 }

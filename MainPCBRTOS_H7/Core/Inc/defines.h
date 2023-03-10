@@ -23,7 +23,6 @@
 #define TELEGRAM_SETSCAN_TWO			"1"
 #define TELEGRAM_SETSCAN_THREE			"FFF92230 225510"
 #define TELEGRAM_OUTPUT_ONE				"sWN LMPoutputRange 1 9C4"
-#define TELEGRAM_CONFIGURE_FOUR			"sWN LFPmeanfilter 0 +3 0"
 #define TELEGRAM_STORE					"sMN mEEwriteall"
 #define TELEGRAM_LOGOUT					"sMN Run"
 #define TELEGRAM_DEVICESTATE			"sRN SCdevicestate"
@@ -40,8 +39,7 @@
 #define FLASH_PARAMETER					0x08080000
 #define FLASH_CALIBRATION				0x08060000
 
-#define THRESHOLD						1340 //in millimeters
-#define BELT							1410 //in millimeters
+#define THRESHOLD						20 //in millimeters
 #define MAXINDEXDIFF_X      			5
 #define MAXHEIGHTDIFF_Y     			10  //in mm
 #define MAXROCKS            			10

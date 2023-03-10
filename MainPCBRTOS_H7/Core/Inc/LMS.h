@@ -47,4 +47,10 @@ unsigned char LMS_getOutputRange(void);
 
 unsigned char LMS_getDevice(void);
 
+unsigned char LMS_configuration(void);
+
+unsigned char LMS_calibration(void);
+
+unsigned char LMS_reboot(void);
+
 #endif /* INC_LMS_H_ */

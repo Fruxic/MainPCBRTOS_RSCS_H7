@@ -18,6 +18,7 @@
 #include "w5500.h"
 #include "w5500_spi.h"
 #include "LMS.h"
+#include "FLASH_SECTOR_H7.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,9 @@
 
 struct rock rck[MAXROCKS];
 struct rockBuf rckBuf[MAXROCKS];
+
+extern RTC_TimeTypeDef gTime;
+extern RTC_DateTypeDef gDate;
 
 /**
  ********************************************************************************
@@ -77,14 +81,14 @@ unsigned char LMS_getOneScan(void){
 			//error handler
 			LMS_disconnect();
 			return EXIT_FAILURE;
-//			NVIC_SystemReset();
+			//			NVIC_SystemReset();
 			for(;;);
 		} else {
-			if((retVal = recv(0, (uint8_t *)LMSrecvTotal_B, sizeof(LMSrecvTotal_B))) <= 0){ //Receive the telegram message from the LMS
+			if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the telegram message from the LMS
 				//error handler
 				LMS_disconnect();
 				return EXIT_FAILURE;
-//				NVIC_SystemReset();
+				//				NVIC_SystemReset();
 				for(;;);
 			}
 		}
@@ -113,15 +117,15 @@ unsigned short LMS_dataSplit(void){
 	unsigned char i = 0;
 
 	for(int j = 0; j < retVal; j++){
-		if(LMSrecvTotal_B[j] == 0x20){
+		if(LMSrecv_B[j] == 0x20){
 			//Each data point counted after a comma
 			LMS_spaceCounter++;
 		}
 		if(LMS_spaceCounter == 25){
 			//on the 25th data point, the data amount can be found
 			j++;
-			while(LMSrecvTotal_B[j] != 0x20){
-				LMS_dataRawAmount[i++] = LMSrecvTotal_B[j++];
+			while(LMSrecv_B[j] != 0x20){
+				LMS_dataRawAmount[i++] = LMSrecv_B[j++];
 			}
 			j--;
 			i = 0;
@@ -130,8 +134,8 @@ unsigned short LMS_dataSplit(void){
 		} else if(LMS_spaceCounter == 26){ //convert all the data point to single integers in an array
 			for(int x = 0; x < LMS_dataAmount; x++){
 				j++;
-				while(LMSrecvTotal_B[j] != 0x20 && LMSrecvTotal_B[j] != 0x0){
-					LMS_dataRaw[i++] = LMSrecvTotal_B[j++];
+				while(LMSrecv_B[j] != 0x20 && LMSrecv_B[j] != 0x0){
+					LMS_dataRaw[i++] = LMSrecv_B[j++];
 				}
 				LMS_spaceCounter++;
 				i = 0;
@@ -140,7 +144,7 @@ unsigned short LMS_dataSplit(void){
 				LMS_measData[x] = LMS_data;
 			}
 			j--;
-		} else if(LMSrecvTotal_B[j] == 0x03){
+		} else if(LMSrecv_B[j] == 0x03){
 			LMS_spaceCounter = 0;
 			break;
 		}
@@ -158,15 +162,12 @@ unsigned short LMS_dataSplit(void){
  * @retval
  *******************************************************************************/
 void LMS_algorithm(unsigned short LMS_dataAmount){
-	//	unsigned short LMS_measData[DATAPOINTMAX];			//GLOBAL
-	//	short LMS_calcDataX[DATAPOINTMAX];					//GLOBAL
-	//	unsigned short LMS_calcDataY[DATAPOINTMAX];			//GLOBAL
 	unsigned short LMS_measArray[DATAPOINTMAX];
 
 	unsigned char status = 0;
 	unsigned char statusTwo = 0;
 	unsigned char statusThree = 0;
-	unsigned char statusThreeCounter = 0;
+	static unsigned char statusThreeCounter = 0;
 	unsigned short indexCounter = 0;
 	unsigned char rockCount = 0;
 	short LMS_dataArrayX[DATAPOINTMAX];
@@ -191,6 +192,9 @@ void LMS_algorithm(unsigned short LMS_dataAmount){
 	unsigned int stop = 0;
 	unsigned int delta = 0;
 
+	static unsigned char emptySecDelta = 0;
+	static unsigned char emptySecStart = 0;
+
 	stop  = HAL_GetTick();
 	delta = stop - start; //Measure time interval
 	start = HAL_GetTick();
@@ -201,7 +205,7 @@ void LMS_algorithm(unsigned short LMS_dataAmount){
 		LMS_calcDataX[x] = LMS_measData[x]*cos((angle*PI)/180);
 		LMS_calcDataY[x] = LMS_measData[x]*sin((angle*PI)/180);
 		angle = angle + resolution;
-		if(LMS_calcDataY[x] < THRESHOLD){
+		if(LMS_calcDataY[x] < LMSlowBelt_U - THRESHOLD){
 			//Only take data below the given threshold.
 			LMS_dataArrayX[x] = LMS_calcDataX[x];
 			LMS_dataArrayY[x] = LMS_calcDataY[x];
@@ -344,7 +348,7 @@ void LMS_algorithm(unsigned short LMS_dataAmount){
 					heightTemp = LMS_dataArrayY[y];
 				}
 			}
-			heightTemp = BELT - heightTemp;
+			heightTemp = LMSbelt_U - heightTemp;
 			if(heightTemp > rck[rockCount-1].height){
 				rck[rockCount-1].height = heightTemp;
 			}
@@ -364,12 +368,31 @@ void LMS_algorithm(unsigned short LMS_dataAmount){
 		}
 	}
 	if(statusThree == 0){
-		statusThreeCounter++;
-		//if after 30 data cycles no rocks are detected, reset rock values
-		if(statusThreeCounter >= 30){
-			bzero(&rck->width, sizeof(rck->width));
-			bzero(&rck->height, sizeof(rck->height));
-			bzero(&rck->length, sizeof(rck->length));
+		if(statusThreeCounter == 0){
+			HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN);
+			HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+			emptySecStart = gTime.Seconds;
+			statusThreeCounter++;
+		} else {
+			HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN);
+			HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+			if(gTime.Seconds > emptySecStart){
+				emptySecDelta += gTime.Seconds - emptySecStart;
+				emptySecStart = gTime.Seconds;
+			} else if(gTime.Seconds < emptySecStart){
+				emptySecDelta += (gTime.Seconds - emptySecStart) + 60;
+				emptySecStart = gTime.Seconds;
+			}
+			//if after 30 data cycles no rocks are detected, reset rock values
+			if(emptySecDelta >= 30){
+				for(int x = 0; x < 10; x++){
+					rck[x].width = 0;
+					rck[x].height = 0;
+					rck[x].length = 0;
+				}
+				statusThreeCounter = 0;
+				emptySecDelta = 0;
+			}
 		}
 	}
 	statusThree = 0;
@@ -389,53 +412,53 @@ void LMS_algorithm(unsigned short LMS_dataAmount){
  * @retval
  *******************************************************************************/
 unsigned char LMS_getFrequencyResolution(void){
-    unsigned short LMS_spaceCounter = 0;
-    char LMS_rawResolution[6] = {0, 0, 0, 0, 0, 0};
-    char LMS_rawFrequency[6] = {0, 0, 0, 0, 0, 0};
-    unsigned char i = 0;
+	unsigned short LMS_spaceCounter = 0;
+	char LMS_rawResolution[6] = {0, 0, 0, 0, 0, 0};
+	char LMS_rawFrequency[6] = {0, 0, 0, 0, 0, 0};
+	unsigned char i = 0;
 
 	if(LMS_connect() == EXIT_SUCCESS){
 		sprintf((char *)LMStrans_B, "%c%s%c", 0x02, TELEGRAM_FREQUENCY, 0x03); //Create telegram to be sent to LMS
 		reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect);
 		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) < 0){ //Send the Telegram to LMS
 			//error handler
-            return EXIT_FAILURE;
-//			NVIC_SystemReset();
+			return EXIT_FAILURE;
+			//			NVIC_SystemReset();
 			for(;;);
 		} else {
 			if((retVal = recv(0, (uint8_t *)LMSrecvTotal_B, sizeof(LMSrecvTotal_B))) <= 0){ //Receive the telegram message from the LMS
 				//error handler
-	            return EXIT_FAILURE;
-//				NVIC_SystemReset();
+				return EXIT_FAILURE;
+				//				NVIC_SystemReset();
 				for(;;);
 			}
 		}
 		LMS_disconnect();
 
-        for(int j = 0; j < retVal; j++){
-            if(LMSrecvTotal_B[j] == 0x20){ //enter this function if space is read from received data of LMS
-                LMS_spaceCounter++; //Each data point counted after a space
-            }
-            if(LMS_spaceCounter == 2){
-                j++; //increment for loop variable to read the the byte containing the data amount and not the space
-                while(LMSrecvTotal_B[j] != 0x20){ //keep reading the data until space is found.
-                    LMS_rawFrequency[i++] = LMSrecvTotal_B[j++];
-                }
-                j--; //decrement for loop variable
-                i = 0; //reset to 0 for next data read.
-                freq = strtol((char *)LMS_rawFrequency, NULL, 16) / 100; //convert from HEX to DEC
-            } else if(LMS_spaceCounter == 4){
-                j++; //increment for loop variable to read the the byte containing the data amount and not the space
-                while(LMSrecvTotal_B[j] != 0x20){ //keep reading the data until space is found.
-                    LMS_rawResolution[i++] = LMSrecvTotal_B[j++];
-                }
-                j--; //decrement for loop variable
-                i = 0; //reset to 0 for next data read.
-                resolution = (float)strtol((char *)LMS_rawResolution, NULL, 16) / 10000; //convert from HEX to DEC
-                break;
-            }
-        }
-        return EXIT_SUCCESS;
+		for(int j = 0; j < retVal; j++){
+			if(LMSrecvTotal_B[j] == 0x20){ //enter this function if space is read from received data of LMS
+				LMS_spaceCounter++; //Each data point counted after a space
+			}
+			if(LMS_spaceCounter == 2){
+				j++; //increment for loop variable to read the the byte containing the data amount and not the space
+				while(LMSrecvTotal_B[j] != 0x20){ //keep reading the data until space is found.
+					LMS_rawFrequency[i++] = LMSrecvTotal_B[j++];
+				}
+				j--; //decrement for loop variable
+				i = 0; //reset to 0 for next data read.
+				freq = strtol((char *)LMS_rawFrequency, NULL, 16) / 100; //convert from HEX to DEC
+			} else if(LMS_spaceCounter == 4){
+				j++; //increment for loop variable to read the the byte containing the data amount and not the space
+				while(LMSrecvTotal_B[j] != 0x20){ //keep reading the data until space is found.
+					LMS_rawResolution[i++] = LMSrecvTotal_B[j++];
+				}
+				j--; //decrement for loop variable
+				i = 0; //reset to 0 for next data read.
+				resolution = (float)strtol((char *)LMS_rawResolution, NULL, 16) / 10000; //convert from HEX to DEC
+				break;
+			}
+		}
+		return EXIT_SUCCESS;
 	} else {
 		return EXIT_FAILURE;
 	}
@@ -451,10 +474,10 @@ unsigned char LMS_getFrequencyResolution(void){
  * @retval
  *******************************************************************************/
 unsigned char LMS_getOutputRange(void){
-    unsigned short LMS_spaceCounter = 0;
-    char LMS_rawStartAngle[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    char LMS_rawEndAngle[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    unsigned char i = 0;
+	unsigned short LMS_spaceCounter = 0;
+	char LMS_rawStartAngle[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+	char LMS_rawEndAngle[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+	unsigned char i = 0;
 
 	if(LMS_connect() == EXIT_SUCCESS){
 		sprintf((char *)LMStrans_B, "%c%s%c", 0x02, TELEGRAM_OUTPUTRANGE, 0x03); //Create telegram to be sent to LMS (Ask for one Poll)
@@ -462,42 +485,42 @@ unsigned char LMS_getOutputRange(void){
 		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 			//error handler
 			return EXIT_FAILURE;
-//			NVIC_SystemReset();
+			//			NVIC_SystemReset();
 			for(;;);
 		} else {
 			if((retVal = recv(0, (uint8_t *)LMSrecvTotal_B, sizeof(LMSrecvTotal_B))) <= 0){ //Receive the telegram message from the LMS
 				//error handler
 				return EXIT_FAILURE;
-//				NVIC_SystemReset();
+				//				NVIC_SystemReset();
 				for(;;);
 			}
 		}
 		LMS_disconnect();
 
-        for(int j = 0; j < retVal; j++){
-            if(LMSrecvTotal_B[j] == 0x20){ //enter this function if space is read from received data of LMS
-                LMS_spaceCounter++; //Each data point counted after a space
-            }
-            if(LMS_spaceCounter == 4){
-                j++; //increment for loop variable to read the the byte containing the data amount and not the space
-                while(LMSrecvTotal_B[j] != 0x20){ //keep reading the data until space is found.
-                    LMS_rawStartAngle[i++] = LMSrecvTotal_B[j++];
-                }
-                j--; //decrement for loop variable
-                i = 0; //reset to 0 for next data read.
-                startAngle = strtol((char *)LMS_rawStartAngle, NULL, 16) / 10000; //convert from HEX to DEC
-            } else if(LMS_spaceCounter == 5){
-                j++; //increment for loop variable to read the the byte containing the data amount and not the space
-                while(LMSrecvTotal_B[j] != 0x03){ //keep reading the data until TELEGRAM end character is found.
-                    LMS_rawEndAngle[i++] = LMSrecvTotal_B[j++];
-                }
-                j--; //decrement for loop variable
-                i = 0; //reset to 0 for next data read.
-                endAngle = strtol((char *)LMS_rawEndAngle, NULL, 16) / 10000; //convert from HEX to DEC
-                break;
-            }
-        }
-        return EXIT_SUCCESS;
+		for(int j = 0; j < retVal; j++){
+			if(LMSrecvTotal_B[j] == 0x20){ //enter this function if space is read from received data of LMS
+				LMS_spaceCounter++; //Each data point counted after a space
+			}
+			if(LMS_spaceCounter == 4){
+				j++; //increment for loop variable to read the the byte containing the data amount and not the space
+				while(LMSrecvTotal_B[j] != 0x20){ //keep reading the data until space is found.
+					LMS_rawStartAngle[i++] = LMSrecvTotal_B[j++];
+				}
+				j--; //decrement for loop variable
+				i = 0; //reset to 0 for next data read.
+				startAngle = strtol((char *)LMS_rawStartAngle, NULL, 16) / 10000; //convert from HEX to DEC
+			} else if(LMS_spaceCounter == 5){
+				j++; //increment for loop variable to read the the byte containing the data amount and not the space
+				while(LMSrecvTotal_B[j] != 0x03){ //keep reading the data until TELEGRAM end character is found.
+					LMS_rawEndAngle[i++] = LMSrecvTotal_B[j++];
+				}
+				j--; //decrement for loop variable
+				i = 0; //reset to 0 for next data read.
+				endAngle = strtol((char *)LMS_rawEndAngle, NULL, 16) / 10000; //convert from HEX to DEC
+				break;
+			}
+		}
+		return EXIT_SUCCESS;
 	} else {
 		return EXIT_FAILURE;
 	}
@@ -513,49 +536,47 @@ unsigned char LMS_getOutputRange(void){
  * @retval
  *******************************************************************************/
 unsigned char LMS_getDevice(void){
-    unsigned short LMS_spaceCounter = 0;
-    unsigned char i = 0;
+	unsigned short LMS_spaceCounter = 0;
+	unsigned char i = 0;
 
-    char LMS_rawDeviceName[10];
-    bzero(LMS_rawDeviceName, sizeof(LMS_rawDeviceName));
+	char LMS_rawDeviceName[10];
+	bzero(LMS_rawDeviceName, sizeof(LMS_rawDeviceName));
 
 	if(LMS_connect() == EXIT_SUCCESS){
 		sprintf((char *)LMStrans_B, "%c%s%c", 0x02, TELEGRAM_DEVICENAME, 0x03); //Create telegram to be sent to LMS (Ask for one Poll)
 		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
 			//error handler
 			return EXIT_FAILURE;
-//			NVIC_SystemReset();
 			for(;;);
 		} else {
 			if((retVal = recv(0, (uint8_t *)LMSrecvTotal_B, sizeof(LMSrecvTotal_B))) <= 0){ //Receive the telegram message from the LMS
 				//error handler
 				return EXIT_FAILURE;
-//				NVIC_SystemReset();
 				for(;;);
 			}
 		}
 		LMS_disconnect();
 
-        for(int j = 0; j < retVal; j++){
-            if(LMStrans_B[j] == 0x20){ //enter this function if space is read from received data of LMS
-                LMS_spaceCounter++; //Each data point counted after a space
-            }
-            if(LMS_spaceCounter == 3){
-                j++; //increment for loop variable to read the the byte containing the data amount and not the space
-                while(i < 5){ //keep reading the data until space is found.
-                    LMS_rawDeviceName[i++] = LMStrans_B[j++];
-                }
-                j--; //decrement for loop variable
-                i = 0; //reset to 0 for next data read.
-                if((strcmp((char *)LMS_rawDeviceName, "LMS_1") == 0)){
-                    device = 0;
-                } else if((strcmp((char *)LMS_rawDeviceName, "LMS_5") == 0)){
-                    device = 1;
-                }
-                break;
-            }
-        }
-        return EXIT_SUCCESS;
+		for(int j = 0; j < retVal; j++){
+			if(LMStrans_B[j] == 0x20){ //enter this function if space is read from received data of LMS
+				LMS_spaceCounter++; //Each data point counted after a space
+			}
+			if(LMS_spaceCounter == 3){
+				j++; //increment for loop variable to read the the byte containing the data amount and not the space
+				while(i < 5){ //keep reading the data until space is found.
+					LMS_rawDeviceName[i++] = LMStrans_B[j++];
+				}
+				j--; //decrement for loop variable
+				i = 0; //reset to 0 for next data read.
+				if((strcmp((char *)LMS_rawDeviceName, "LMS_1") == 0)){
+					device = 0;
+				} else if((strcmp((char *)LMS_rawDeviceName, "LMS_5") == 0)){
+					device = 1;
+				}
+				break;
+			}
+		}
+		return EXIT_SUCCESS;
 	} else {
 		return EXIT_FAILURE;
 	}
@@ -570,8 +591,138 @@ unsigned char LMS_getDevice(void){
  *
  * @retval
  *******************************************************************************/
-void LMS_configuration(void){
+unsigned char LMS_configuration(void){
+	char NMEArecv[7];
+	char LMS_state = '0';
+	unsigned char LMS_dataCounter = 0;
 
+	unsigned int resolutionConv = 0;
+	unsigned int freqConv = 0;
+	unsigned int startAngleConv = 0;
+	unsigned int endAngleConv = 0;
+
+	unsigned char failedStateMinutesDelta = 0;
+	unsigned char failedStateMinutesStart = 0;
+
+	unsigned short angleBuf;
+
+	sscanf(IOrecv_B, "%[^,],%d,%d,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
+	if(endAngle < startAngle){
+		angleBuf = startAngle;
+		startAngle = endAngle;
+		endAngle = angleBuf;
+	}
+	//configure 2D LiDAR sensor with the given parameters
+	if(LMS_connect() == EXIT_SUCCESS){
+		sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_LOGIN, 0x03); //Create telegram to be sent to LMS (Ask for one data packet)
+		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		/* configure setscan parameter LMS */
+		freqConv = freq * 100;
+		resolutionConv = resolution * 10000;
+		sprintf(LMStrans_B, "%c%s %X %s %X %s%c", 0x02, TELEGRAM_SETSCAN_ONE, freqConv, TELEGRAM_SETSCAN_TWO, resolutionConv, TELEGRAM_SETSCAN_THREE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		/* configure output parameter LMS */
+		startAngleConv = startAngle * 10000;
+		endAngleConv = endAngle * 10000;
+		sprintf(LMStrans_B, "%c%s %X %X%c", 0x02, TELEGRAM_OUTPUT_ONE, startAngleConv, endAngleConv, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		/* store parameter in LMS */
+		sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_STORE, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+			//error handler
+			for(;;);
+		}
+
+		sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_LOGOUT, 0x03); //Create telegram to be sent to LMS (Ask for one datapacket)
+		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+			//error handler
+			return EXIT_FAILURE;
+			for(;;);
+		}
+		sprintf(LMStrans_B, "%c%s%c", 0x02, TELEGRAM_DEVICESTATE, 0x03);
+		HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+		failedStateMinutesStart = gTime.Minutes;
+		failedStateMinutesDelta = 0;
+		while(LMS_state != '1'){ //Wait till LMS sensor is done configuring
+			HAL_IWDG_Refresh(&hiwdg1);
+			HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN);
+			HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+			if(gTime.Minutes > failedStateMinutesStart){
+				failedStateMinutesDelta += gTime.Minutes - failedStateMinutesStart;
+				failedStateMinutesStart = gTime.Minutes;
+			} else if(gTime.Minutes < failedStateMinutesStart){
+				failedStateMinutesDelta += (gTime.Minutes - failedStateMinutesStart) + 60;
+				failedStateMinutesStart = gTime.Minutes;
+			}
+			if(failedStateMinutesDelta >= 2){
+				failedStateMinutesDelta = 0;
+				LMS_reboot();
+			} else {
+				if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+					//error handler
+					for(;;);
+				}
+				if((retVal = recv(0, (uint8_t *)LMSrecv_B, sizeof(LMSrecv_B))) <= 0){ //Receive the data packet from the LMS
+					//error handler
+					for(;;);
+				}
+				for(int j = 0; j < retVal; j++){
+					if(LMSrecv_B[j] == 0x20){
+						LMS_dataCounter++;
+					}
+					if(LMS_dataCounter == 2){
+						j++;
+						LMS_state = LMSrecv_B[j];
+						LMS_dataCounter = 0;
+						break;
+					}
+				}
+			}
+		}
+		LMS_state = '0';
+		LMS_disconnect();
+		return EXIT_SUCCESS;
+	} else {
+		return EXIT_FAILURE;
+	}
 }
 
 /**
@@ -583,6 +734,90 @@ void LMS_configuration(void){
  *
  * @retval
  *******************************************************************************/
-void LMS_reboot(void){
+unsigned char LMS_calibration(void){
+	float flashArr[4];
+	float angle;
+	unsigned short LMS_dataAmount = 0;
+	unsigned int LMS_calibrationArray[DATAPOINTMAX];
+	unsigned char thresholdStatus = 0;
+	unsigned char skippedScan = 0;
 
+	bzero(LMS_calibrationArray, sizeof(LMS_calibrationArray));
+	for(int x = 0; x < INTERVAL; x++){
+		if(skippedScan >= 3){
+			LMSlowBelt_U = LMShighBelt_U = LMSbelt_U = 0;
+			return EXIT_FAILURE;
+		}
+		if(LMS_getOneScan() == EXIT_SUCCESS){
+			LMS_dataAmount = LMS_dataSplit();
+			angle = startAngle;
+			for(int x = 0; x < LMS_dataAmount; x++){
+				//From Polar coordinates to Cartesian coordinates.
+				LMS_calcDataY[x] = LMS_measData[x]*sin((angle*PI)/180);
+				angle = angle + resolution;
+			}
+			if(thresholdStatus == 0){
+				LMShighBelt_U = LMSlowBelt_U = LMS_calcDataY[0];
+				thresholdStatus++;
+			}
+			for(int y = 0; y < LMS_dataAmount; y++){
+				LMS_calibrationArray[y] += LMS_calcDataY[y];
+				if(LMSlowBelt_U > LMS_calcDataY[y])
+					LMSlowBelt_U = LMS_calcDataY[y];
+				if(LMShighBelt_U < LMS_calcDataY[y])
+					LMShighBelt_U = LMS_calcDataY[y];
+			}
+			for(int y = LMS_dataAmount; y < DATAPOINTMAX; y++){
+				LMS_calibrationArray[y] = 0;
+			}
+		} else {
+			skippedScan++;
+		}
+	}
+	for(int x = 0; x < LMS_dataAmount; x++){
+		LMS_calibrationArray[x] = LMS_calibrationArray[x]/INTERVAL;
+		LMSbelt_U += LMS_calibrationArray[x];
+	}
+	LMSbelt_U = LMSbelt_U/LMS_dataAmount;
+	//flash the thresholds
+	flashArr[0] = LMShighBelt_U;
+	flashArr[1] = LMSlowBelt_U;
+	flashArr[2] = LMSbelt_U;
+	//Run once for timeout handler.
+	Flash_Write_Data(FLASH_CALIBRATION, (uint32_t *)flashArr, 3);
+	//Save the values in the Flash
+	Flash_Write_Data(FLASH_CALIBRATION, (uint32_t *)flashArr, 3);
+	return EXIT_SUCCESS;
+}
+
+/**
+ ********************************************************************************
+ * @brief
+ *
+ * @param[in]  N/A
+ * @param[out] N/A
+ *
+ * @retval
+ *******************************************************************************/
+unsigned char LMS_reboot(void){
+	if(LMS_connect() == EXIT_SUCCESS){
+		sprintf((char *)LMStrans_B, "%c%s%c", 0x02, TELEGRAM_REBOOT, 0x03); //Create telegram to be sent to LMS
+		if((retVal = send(0, (uint8_t *)LMStrans_B, strlen(LMStrans_B))) <= 0){ //Send the Telegram to LMS
+			//error handler
+			return EXIT_FAILURE;
+			//			NVIC_SystemReset();
+			for(;;);
+		} else {
+			if((retVal = recv(0, (uint8_t *)LMSrecvTotal_B, sizeof(LMSrecvTotal_B))) <= 0){ //Receive the telegram message from the LMS
+				//error handler
+				return EXIT_FAILURE;
+				//				NVIC_SystemReset();
+				for(;;);
+			}
+		}
+		LMS_disconnect();
+		return EXIT_SUCCESS;
+	} else {
+		return EXIT_FAILURE;
+	}
 }

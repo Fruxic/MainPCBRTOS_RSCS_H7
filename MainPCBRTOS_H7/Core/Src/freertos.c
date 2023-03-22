@@ -134,6 +134,7 @@ void MX_FREERTOS_Init(void) {
 	HAL_Delay(500);
 	IO_sendConfiguredParameters();
 	IO_close(); //Empty buffer
+	HAL_IWDG_Refresh(&hiwdg1);
 	/* USER CODE END Init */
 
 	/* USER CODE BEGIN RTOS_MUTEX */
@@ -285,19 +286,6 @@ void startIO(void const * argument)
 	short tempSpeed = 0;
 	unsigned char tempOutput = 0;
 	short speedOutputCount = 0;
-
-	char LMS_state = '0';
-	unsigned char LMS_dataCounter = 0;
-
-	unsigned int resolutionConv = 0;
-	unsigned int freqConv = 0;
-	unsigned int startAngleConv = 0;
-	unsigned int endAngleConv = 0;
-
-	unsigned char failedStateMinutesDelta = 0;
-	unsigned char failedStateMinutesStart = 0;
-
-	unsigned short angleBuf;
 
 	/* Infinite loop */
 	for(;;)

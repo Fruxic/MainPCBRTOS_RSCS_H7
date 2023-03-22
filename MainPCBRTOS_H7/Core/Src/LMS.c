@@ -326,7 +326,6 @@ void LMS_algorithm(unsigned short LMS_dataAmount){
 		if(rockCount >= 1 && statusTwo == 1){
 			//A status variable to check if the stone is present or not
 			statusThree = 1;
-			statusThreeCounter = 0;
 			statusTwo = 0;
 
 			//Axis Check

@@ -278,7 +278,7 @@ unsigned char IO_sendMeasurementData(void){
 	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
 	sprintf(IOtrans_B, "%s,%.2f,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u"
 			",%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
-			NMEA_DATA, measTemp, measAmpMax-1, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds,
+			NMEA_DATA, measTemp, measAmpMax, measFreq, humAlertOne, humAlertTwo, gTime.Hours, gTime.Minutes, gTime.Seconds,
 			rck[0].height, rck[0].width, rck[0].length, rck[1].height, rck[1].width, rck[1].length,
 			rck[2].height, rck[2].width, rck[2].length, rck[3].height, rck[3].width, rck[3].length,
 			rck[4].height, rck[4].width, rck[4].length, rck[5].height, rck[5].width, rck[5].length,

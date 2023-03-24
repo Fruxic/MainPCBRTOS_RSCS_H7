@@ -9,7 +9,6 @@
 #define INC_DEFINES_H_
 
 #define PI								3.142857
-#define CORRECTION						2.5
 
 #define PORT							30189
 #define NMEA_DATA						"$PVRSCD"

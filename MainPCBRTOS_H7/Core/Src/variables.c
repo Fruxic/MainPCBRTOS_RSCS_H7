@@ -47,8 +47,8 @@ unsigned short LMS_measData[DATAPOINTMAX];
 short LMS_calcDataX[DATAPOINTMAX];
 unsigned short LMS_calcDataY[DATAPOINTMAX];
 //
-unsigned int startAngle = 0;
-unsigned int endAngle = 0;
+short startAngle = 0;
+short endAngle = 0;
 float resolution = 0;
 unsigned int freq = 0;
 unsigned int speed = 0;

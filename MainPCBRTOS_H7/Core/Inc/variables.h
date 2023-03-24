@@ -49,8 +49,8 @@ extern unsigned short LMS_measData[DATAPOINTMAX];
 extern short LMS_calcDataX[DATAPOINTMAX];
 extern unsigned short LMS_calcDataY[DATAPOINTMAX];
 //
-extern unsigned int startAngle;
-extern unsigned int endAngle;
+extern short startAngle;
+extern short endAngle;
 extern float resolution;
 extern unsigned int freq;
 extern unsigned int speed;

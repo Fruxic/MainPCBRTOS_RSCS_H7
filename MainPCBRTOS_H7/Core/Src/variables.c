@@ -19,7 +19,7 @@ char IOrecv_B[128];
 char IOrecvTwo_B[128];
 char IOtrans_B[4096];
 //
-char MEASdata_B[22];
+char MEASdata_B[26];
 char LMSpointCloudPolarOne_B[2048];
 char LMSpointCloudXOne_B[2048];
 char LMSpointCloudYOne_B[2048];

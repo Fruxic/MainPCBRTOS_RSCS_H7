@@ -21,7 +21,7 @@ extern char IOrecv_B[128];
 extern char IOrecvTwo_B[128];
 extern char IOtrans_B[4096];
 //
-extern char MEASdata_B[22];
+extern char MEASdata_B[26];
 extern char LMSpointCloudPolarOne_B[2048];
 extern char LMSpointCloudXOne_B[2048];
 extern char LMSpointCloudYOne_B[2048];

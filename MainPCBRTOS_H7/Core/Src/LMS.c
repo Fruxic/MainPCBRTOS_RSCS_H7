@@ -605,7 +605,7 @@ unsigned char LMS_configuration(void){
 
 	unsigned short angleBuf;
 
-	sscanf(IOrecv_B, "%[^,],%d,%d,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
+	sscanf(IOrecv_B, "%[^,],%hd,%hd,%f,%d\r\n", NMEArecv, &startAngle, &endAngle, &resolution, &freq);
 	if(endAngle < startAngle){
 		angleBuf = startAngle;
 		startAngle = endAngle;
@@ -740,6 +740,7 @@ unsigned char LMS_calibration(void){
 	unsigned int LMS_calibrationArray[DATAPOINTMAX];
 	unsigned char thresholdStatus = 0;
 	unsigned char skippedScan = 0;
+	unsigned short count = 0;
 
 	bzero(LMS_calibrationArray, sizeof(LMS_calibrationArray));
 	for(int x = 0; x < INTERVAL; x++){
@@ -753,6 +754,7 @@ unsigned char LMS_calibration(void){
 			for(int x = 0; x < LMS_dataAmount; x++){
 				//From Polar coordinates to Cartesian coordinates.
 				LMS_calcDataY[x] = LMS_measData[x]*sin((angle*PI)/180);
+				LMS_calcDataX[x] = LMS_measData[x]*cos((angle*PI)/180);
 				angle = angle + resolution;
 			}
 			if(thresholdStatus == 0){
@@ -760,11 +762,14 @@ unsigned char LMS_calibration(void){
 				thresholdStatus++;
 			}
 			for(int y = 0; y < LMS_dataAmount; y++){
-				LMS_calibrationArray[y] += LMS_calcDataY[y];
-				if(LMSlowBelt_U > LMS_calcDataY[y])
-					LMSlowBelt_U = LMS_calcDataY[y];
-				if(LMShighBelt_U < LMS_calcDataY[y])
-					LMShighBelt_U = LMS_calcDataY[y];
+				if(LMS_calcDataY[y] >= 100 && (LMS_calcDataX[y] >= 2+LMS_calcDataX[y-1] && LMS_calcDataX[y] <= 2-LMS_calcDataX[y-1])){
+					LMS_calibrationArray[count] += LMS_calcDataY[y];
+					if(LMSlowBelt_U > LMS_calcDataY[y])
+						LMSlowBelt_U = LMS_calcDataY[y];
+					if(LMShighBelt_U < LMS_calcDataY[y])
+						LMShighBelt_U = LMS_calcDataY[y];
+					count++;
+				}
 			}
 			for(int y = LMS_dataAmount; y < DATAPOINTMAX; y++){
 				LMS_calibrationArray[y] = 0;
@@ -773,11 +778,11 @@ unsigned char LMS_calibration(void){
 			skippedScan++;
 		}
 	}
-	for(int x = 0; x < LMS_dataAmount; x++){
+	for(int x = 0; x < count; x++){
 		LMS_calibrationArray[x] = LMS_calibrationArray[x]/INTERVAL;
 		LMSbelt_U += LMS_calibrationArray[x];
 	}
-	LMSbelt_U = LMSbelt_U/LMS_dataAmount;
+	LMSbelt_U = LMSbelt_U/count;
 	//flash the thresholds
 	flashArr[0] = LMShighBelt_U;
 	flashArr[1] = LMSlowBelt_U;

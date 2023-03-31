@@ -233,9 +233,13 @@ void PeriphCommonClock_Config(void)
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	if(MEASdata_B[0] == 0x0){
-		MEASdata_B[0] = 0x20;
+		for(short x = 0; x < sizeof(MEASdata_B); x++){
+			MEASdata_B[x] = MEASdata_B[x+1];
+		}
 	}
-	sscanf(MEASdata_B, "#MU,%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
+	sscanf(MEASdata_B, "%[^,]", MEASrecv);
+	if((strcmp((char *)MEASrecv, "#MU") == 0))
+		sscanf(MEASdata_B, "#MU,%f,%f,%f,%d", &measAmpMax, &measFreq, &measTemp, &humAlertTwo);
 	HAL_UART_Receive_DMA(&huart2, (uint8_t *)&MEASdata_B, sizeof(MEASdata_B));
 	bzero(MEASdata_B, sizeof(MEASdata_B));
 }

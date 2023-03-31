@@ -97,12 +97,12 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
 /* USER CODE END GET_IDLE_TASK_MEMORY */
 
 /**
-  * @brief  FreeRTOS initialization
-  * @param  None
-  * @retval None
-  */
+ * @brief  FreeRTOS initialization
+ * @param  None
+ * @retval None
+ */
 void MX_FREERTOS_Init(void) {
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 	//Start UART
 	HAL_UART_Receive_DMA(&huart2, (uint8_t *)&MEASdata_B, sizeof(MEASdata_B));
 
@@ -135,44 +135,44 @@ void MX_FREERTOS_Init(void) {
 	IO_sendConfiguredParameters();
 	IO_close(); //Empty buffer
 	HAL_IWDG_Refresh(&hiwdg1);
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* USER CODE BEGIN RTOS_MUTEX */
+	/* USER CODE BEGIN RTOS_MUTEX */
 	/* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
+	/* USER CODE END RTOS_MUTEX */
 
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
+	/* USER CODE BEGIN RTOS_SEMAPHORES */
 	/* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
+	/* USER CODE END RTOS_SEMAPHORES */
 
-  /* USER CODE BEGIN RTOS_TIMERS */
+	/* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
+	/* USER CODE END RTOS_TIMERS */
 
-  /* USER CODE BEGIN RTOS_QUEUES */
+	/* USER CODE BEGIN RTOS_QUEUES */
 	/* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
+	/* USER CODE END RTOS_QUEUES */
 
-  /* Create the thread(s) */
-  /* definition and creation of Idle */
-  osThreadDef(Idle, startIdle, osPriorityIdle, 0, 128);
-  IdleHandle = osThreadCreate(osThread(Idle), NULL);
+	/* Create the thread(s) */
+	/* definition and creation of Idle */
+	osThreadDef(Idle, startIdle, osPriorityIdle, 0, 128);
+	IdleHandle = osThreadCreate(osThread(Idle), NULL);
 
-  /* definition and creation of LMS */
-  osThreadDef(LMS, startLMS, osPriorityRealtime, 0, 8196);
-  LMSHandle = osThreadCreate(osThread(LMS), NULL);
+	/* definition and creation of LMS */
+	osThreadDef(LMS, startLMS, osPriorityRealtime, 0, 8196);
+	LMSHandle = osThreadCreate(osThread(LMS), NULL);
 
-  /* definition and creation of Humidity */
-  osThreadDef(Humidity, startHumidity, osPriorityNormal, 0, 512);
-  HumidityHandle = osThreadCreate(osThread(Humidity), NULL);
+	/* definition and creation of Humidity */
+	osThreadDef(Humidity, startHumidity, osPriorityNormal, 0, 512);
+	HumidityHandle = osThreadCreate(osThread(Humidity), NULL);
 
-  /* definition and creation of IO */
-  osThreadDef(IO, startIO, osPriorityAboveNormal, 0, 8196);
-  IOHandle = osThreadCreate(osThread(IO), NULL);
+	/* definition and creation of IO */
+	osThreadDef(IO, startIO, osPriorityAboveNormal, 0, 8196);
+	IOHandle = osThreadCreate(osThread(IO), NULL);
 
-  /* USER CODE BEGIN RTOS_THREADS */
+	/* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
+	/* USER CODE END RTOS_THREADS */
 
 }
 
@@ -185,13 +185,13 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_startIdle */
 void startIdle(void const * argument)
 {
-  /* USER CODE BEGIN startIdle */
+	/* USER CODE BEGIN startIdle */
 	/* Infinite loop */
 	for(;;)
 	{
 		osDelay(1);
 	}
-  /* USER CODE END startIdle */
+	/* USER CODE END startIdle */
 }
 
 /* USER CODE BEGIN Header_startLMS */
@@ -203,13 +203,19 @@ void startIdle(void const * argument)
 /* USER CODE END Header_startLMS */
 void startLMS(void const * argument)
 {
-  /* USER CODE BEGIN startLMS */
+	unsigned char connection = 0;
+	/* USER CODE BEGIN startLMS */
 	uint16_t LMS_dataAmount = 0;
 	/* Infinite loop */
 	for(;;){
 		if(lock == 0){
 			reg_wizchip_cs_cbfunc(LMS_select, LMS_deselect); //Select the LMS WIZCHIP for communicating with the SICK laser
 			if(LMS_getOneScan() == EXIT_SUCCESS){ //Get one scan from the LMS
+				if(connection == 0){
+					connection++;
+					LMS_getOutputRange();
+					LMS_getFrequencyResolution();
+				}
 				LMS_dataAmount = LMS_dataSplit(); //Split the raw data and convert into separate integers
 				LMS_algorithm(LMS_dataAmount); //Apply the algorithm to differentiate the rocks and determine teh size
 				reg_wizchip_cs_cbfunc(IO_select, IO_deselect); //Select the IO WIZCHIP for communicating with the IO-server
@@ -220,13 +226,15 @@ void startLMS(void const * argument)
 				bzero(LMS_calcDataX, sizeof(LMS_calcDataX));
 				bzero(LMS_calcDataY, sizeof(LMS_calcDataY));
 				bzero(LMS_measData, sizeof(LMS_measData));
+			} else {
+				connection = 0;
 			}
 		}
 		osDelay(1);
 	}
 	// In case we accidentally leave loop
 	osThreadTerminate(NULL);
-  /* USER CODE END startLMS */
+	/* USER CODE END startLMS */
 }
 
 /* USER CODE BEGIN Header_startHumidity */
@@ -238,7 +246,7 @@ void startLMS(void const * argument)
 /* USER CODE END Header_startHumidity */
 void startHumidity(void const * argument)
 {
-  /* USER CODE BEGIN startHumidity */
+	/* USER CODE BEGIN startHumidity */
 	uint8_t I2C_recv[6];
 	uint8_t I2C_trans[2];
 	uint16_t val;
@@ -268,7 +276,7 @@ void startHumidity(void const * argument)
 	}
 	// In case we accidentally leave loop
 	osThreadTerminate(NULL);
-  /* USER CODE END startHumidity */
+	/* USER CODE END startHumidity */
 }
 
 /* USER CODE BEGIN Header_startIO */
@@ -280,7 +288,7 @@ void startHumidity(void const * argument)
 /* USER CODE END Header_startIO */
 void startIO(void const * argument)
 {
-  /* USER CODE BEGIN startIO */
+	/* USER CODE BEGIN startIO */
 	char NMEArecv[7];
 
 	short tempSpeed = 0;
@@ -343,7 +351,7 @@ void startIO(void const * argument)
 	}
 	// In case we accidentally leave loop
 	osThreadTerminate(NULL);
-  /* USER CODE END startIO */
+	/* USER CODE END startIO */
 }
 
 /* Private application code --------------------------------------------------*/
